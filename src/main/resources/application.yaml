@@ -2,6 +2,12 @@ spring:
   application:
     name: spring-ai-practice
   ai:
+    model:
+      chat: deepseek
     deepseek:
       api-key: sk-bbae6eb97396449f9d9531e2ff0f409e
-
+      base-url: https://api.deepseek.com
+      chat:
+        options:
+          model: deepseek-v4-flash
+          temperature: 0.6
