@@ -1,6 +1,6 @@
 package cn.javastack.ai.controller;
 
-import cn.javastack.ai.common.DeepSeekChatClient;
+import cn.javastack.ai.common.DeepSeekChatClientTool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
@@ -31,7 +31,7 @@ public class DeepseekController {
     private static final Logger logger = LoggerFactory.getLogger(DeepseekController.class);
 
     private final DeepSeekChatModel chatModel;
-    private final DeepSeekChatClient chatClient;
+    private final DeepSeekChatClientTool chatClientTool;
 
     @GetMapping("/modelChat")
     public String modelChat(@RequestParam(value = "message") String message) {
@@ -42,7 +42,7 @@ public class DeepseekController {
     @GetMapping("/clientChat")
     public String clientChat(@RequestParam(value = "message") String message) {
         logger.info("调用clientChat，输入问题：{}", message);
-        return chatClient.buildChatClient().prompt(message).call().content();
+        return chatClientTool.buildChatClient().prompt(message).call().content();
     }
 
     @GetMapping(value = "/chatStream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -55,7 +55,7 @@ public class DeepseekController {
     @GetMapping(value = "/chatStreamText", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<Map<String, String>> chatStreamText(@RequestParam(value = "message") String message) {
         logger.info("调用chatStreamText，输入问题：{}", message);
-        return chatClient.buildChatClient()
+        return chatClientTool.buildChatClient()
                 .prompt()
                 .system(s -> s.text("DeepSeek AI助手").metadata("model", "deepseek-v4"))
                 .user(u -> u.text(message).metadata("userId", "100001"))
