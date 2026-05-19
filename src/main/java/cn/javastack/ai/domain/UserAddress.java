@@ -1,4 +1,5 @@
 package cn.javastack.ai.domain;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
@@ -8,6 +9,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Date;
 
+@Schema(description = "用户地址实体类")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -16,7 +18,9 @@ public class UserAddress implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
+    @Schema(description = "地址ID", requiredMode = Schema.RequiredMode.REQUIRED)
     private Long id;                      // 地址ID
+    @Schema(description = "用户ID")
     private Long userId;                  // 用户ID
     private String receiverName;          // 收货人姓名
     private String receiverPhone;         // 收货人电话

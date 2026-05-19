@@ -1,6 +1,9 @@
 package cn.javastack.ai.controller;
 
 import cn.javastack.ai.domain.UserAddress;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +27,7 @@ import java.util.Map;
 /**
  * Deepseek 聊天控制器
  */
+@Tag(name = "Spring AI 接口", description = "Spring AI 接口文档")
 @Slf4j
 @RestController
 @RequestMapping("/deepseek")
@@ -36,15 +40,17 @@ public class DeepseekController {
     @Resource(name = "openAiChatClient")
     private final ChatClient openAiChatClient;
 
+    @Operation(summary = "modelChat聊天")
     @GetMapping("/modelChat")
-    public String modelChat(@RequestParam(value = "message") String message) {
+    public String modelChat(@Parameter(description = "输入问题") @RequestParam(value = "message") String message) {
         logger.info("调用modelChat，输入问题：{}", message);
         return chatModel.call(message);
     }
 
+    @Operation(summary = "clientChat聊天")
     @GetMapping("/clientChat")
-    public String clientChat(@RequestParam(value = "message") String message,
-                             @RequestParam(value = "voice", required = false, defaultValue = "聊天AI助手") String voice) {
+    public String clientChat(@Parameter(description = "输入问题") @RequestParam(value = "message") String message,
+                             @Parameter(description = "口吻") @RequestParam(value = "voice", required = false, defaultValue = "聊天AI助手") String voice) {
         logger.info("调用clientChat，输入问题：{}，口吻：{}", message, voice);
         return deepSeekChatClient.prompt(message)
                 .system(sp -> sp.param("voice", voice))
@@ -52,17 +58,19 @@ public class DeepseekController {
                 .content();
     }
 
-    @GetMapping(value = "/chatStream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<ChatResponse> chatStream(@RequestParam(value = "message") String message) {
-        logger.info("调用chatStream，输入问题：{}", message);
+    @Operation(summary = "modelStream聊天")
+    @GetMapping(value = "/modelStream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<ChatResponse> modelStream(@Parameter(description = "输入问题") @RequestParam(value = "message") String message) {
+        logger.info("调用modelStream，输入问题：{}", message);
         Prompt prompt = new Prompt(new UserMessage(message));
         return chatModel.stream(prompt);
     }
 
-    @GetMapping(value = "/chatStreamText", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<Map<String, String>> chatStreamText(@RequestParam(value = "message") String message,
-                                                    @RequestParam(value = "voice", required = false, defaultValue = "聊天AI助手") String voice) {
-        logger.info("调用chatStreamText，输入问题：{}，口吻：{}", message, voice);
+    @Operation(summary = "clientStreamText聊天")
+    @GetMapping(value = "/clientStreamText", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<Map<String, String>> clientStreamText(@Parameter(description = "输入问题") @RequestParam(value = "message") String message,
+                                                    @Parameter(description = "口吻") @RequestParam(value = "voice", required = false, defaultValue = "聊天AI助手") String voice) {
+        logger.info("调用clientStreamText，输入问题：{}，口吻：{}", message, voice);
         return deepSeekChatClient.prompt()
                 .system(sp -> sp.param("voice", voice))
                 .user(u -> u.text(message)

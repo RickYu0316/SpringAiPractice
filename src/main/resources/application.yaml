@@ -1,3 +1,5 @@
+server:
+  port: 8080
 spring:
   application:
     name: spring-ai-practice
@@ -31,3 +33,26 @@ spring:
           maxToken: 10000
           maxCompletionTokens: 10000
           temperature: 0.8
+
+# Swagger配置
+springdoc:
+  swagger-ui:
+    path: /doc.html
+    enabled: true
+    packages-to-scan: cn.javastack.ai.controller
+    operations-sorter: method   # 按方法排序
+    tags-sorter: alpha          # 按字母排序
+    show-actuator: true         # 显示 Actuator 端点
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  info:
+    title: "Spring AI 接口"
+    version: "1.0.0"
+    description: "Spring AI 接口文档"
+    contact:
+      name: "team"
+      email: "team@example.com"
+    license:
+      name: "Apache 2.0"
+      url: "https://www.apache.org/licenses/LICENSE-2.0"
