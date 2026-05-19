@@ -2,8 +2,17 @@ spring:
   application:
     name: spring-ai-practice
   ai:
-    model:
-      chat: deepseek
+    chat:
+      client:
+        enabled: false
+#    model:
+#      chat: deepseek  # 聊天模型
+#      image: openai  # 图像模型
+#      audio:  # 音频模型
+#        speech: openai  # 文本转语音
+#        transcription: openai  # 语音转文本
+#      embedding: openai  # 嵌入模型
+#      moderation: openai  # 内容审核模型
     deepseek:
       api-key: sk-bbae6eb97396449f9d9531e2ff0f409e
       base-url: https://api.deepseek.com
@@ -11,3 +20,14 @@ spring:
         options:
           model: deepseek-v4-flash
           temperature: 0.6
+    openai:
+      api-key: sk-demo
+      base-url: https://api.openai.com
+      projectId: spring-ai-practice
+      organization-id: YU
+      chat:
+        options:
+          model: gpt-4o-mini
+          maxToken: 10000
+          maxCompletionTokens: 10000
+          temperature: 0.8
