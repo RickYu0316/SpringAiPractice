@@ -10,24 +10,31 @@ import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.deepseek.DeepSeekAssistantMessage;
 import org.springframework.ai.deepseek.DeepSeekChatModel;
+import org.springframework.ai.deepseek.DeepSeekChatOptions;
+import org.springframework.ai.deepseek.api.DeepSeekApi;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
 import org.springframework.util.StringUtils;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Deepseek 聊天控制器
  */
-@Tag(name = "Spring AI 接口", description = "Spring AI 接口文档")
+@Tag(name = "Deepseek Spring AI 接口", description = "Deepseek Spring AI 接口文档")
 @Slf4j
 @RestController
 @RequestMapping("/deepseek")
@@ -40,25 +47,25 @@ public class DeepseekController {
     @Resource(name = "openAiChatClient")
     private final ChatClient openAiChatClient;
 
-    @Operation(summary = "modelChat聊天")
+    @Operation(summary = "model简单聊天")
     @GetMapping("/modelChat")
     public String modelChat(@Parameter(description = "输入问题") @RequestParam(value = "message") String message) {
         logger.info("调用modelChat，输入问题：{}", message);
         return chatModel.call(message);
     }
 
-    @Operation(summary = "clientChat聊天")
+    @Operation(summary = "client简单聊天")
     @GetMapping("/clientChat")
     public String clientChat(@Parameter(description = "输入问题") @RequestParam(value = "message") String message,
                              @Parameter(description = "口吻") @RequestParam(value = "voice", required = false, defaultValue = "聊天AI助手") String voice) {
-        logger.info("调用clientChat，输入问题：{}，口吻：{}", message, voice);
+        logger.info("调用clientChat，输入问题：{}。口吻：{}", message, voice);
         return deepSeekChatClient.prompt(message)
                 .system(sp -> sp.param("voice", voice))
                 .call()
                 .content();
     }
 
-    @Operation(summary = "modelStream聊天")
+    @Operation(summary = "model流式聊天")
     @GetMapping(value = "/modelStream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ChatResponse> modelStream(@Parameter(description = "输入问题") @RequestParam(value = "message") String message) {
         logger.info("调用modelStream，输入问题：{}", message);
@@ -66,11 +73,11 @@ public class DeepseekController {
         return chatModel.stream(prompt);
     }
 
-    @Operation(summary = "clientStreamText聊天")
+    @Operation(summary = "client流式聊天")
     @GetMapping(value = "/clientStreamText", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<Map<String, String>> clientStreamText(@Parameter(description = "输入问题") @RequestParam(value = "message") String message,
-                                                    @Parameter(description = "口吻") @RequestParam(value = "voice", required = false, defaultValue = "聊天AI助手") String voice) {
-        logger.info("调用clientStreamText，输入问题：{}，口吻：{}", message, voice);
+                                                      @Parameter(description = "口吻") @RequestParam(value = "voice", required = false, defaultValue = "聊天AI助手") String voice) {
+        logger.info("调用clientStreamText，输入问题：{}。口吻：{}", message, voice);
         return deepSeekChatClient.prompt()
                 .system(sp -> sp.param("voice", voice))
                 .user(u -> u.text(message)
@@ -80,6 +87,114 @@ public class DeepseekController {
                 .mapNotNull(r -> r.getResult().getOutput().getText())
                 .filter(StringUtils::hasLength)
                 .map(text -> Collections.singletonMap("context", text));
+    }
+
+    @Operation(summary = "思考过程简单聊天")
+    @GetMapping("/chatReasoning")
+    public String chatReasoning(@Parameter(description = "输入问题") @RequestParam(value = "message") String message,
+                                @Parameter(description = "口吻") @RequestParam(value = "voice", required = false, defaultValue = "聊天AI助手") String voice) {
+        logger.info("调用chatReasoning，输入问题：{}。口吻：{}", message, voice);
+        // 使用推理模型
+        DeepSeekChatOptions promptOptions = DeepSeekChatOptions.builder().model(DeepSeekApi.ChatModel.DEEPSEEK_REASONER.getValue()).build();
+        ChatResponse chatResponse = deepSeekChatClient.prompt(new Prompt(message, promptOptions))
+                .system(sp -> sp.param("voice", voice))
+                .call()
+                .chatResponse();
+
+        assert chatResponse != null;
+        DeepSeekAssistantMessage assistantMessage = (DeepSeekAssistantMessage) chatResponse.getResult().getOutput();
+        String reasoningContent = assistantMessage.getReasoningContent();
+        String text = assistantMessage.getText();
+
+        return "思考过程：\n\n%s\n\n回答内容：\n\n%s".formatted(reasoningContent, text);
+    }
+
+    @Operation(summary = "思考过程流式聊天")
+    @GetMapping(value = "/chatReasoningStream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<Map<String, String>> chatReasoningStream(@Parameter(description = "输入问题") @RequestParam(value = "message") String message,
+                                                         @Parameter(description = "口吻") @RequestParam(value = "voice", required = false, defaultValue = "聊天AI助手") String voice) {
+        logger.info("调用chatReasoningStream，输入问题：{}。口吻：{}", message, voice);
+        // 使用推理模型
+        DeepSeekChatOptions promptOptions = DeepSeekChatOptions.builder().model(DeepSeekApi.ChatModel.DEEPSEEK_REASONER.getValue()).build();
+        // TODO 在输出内容前，拼接 "思考过程：" 和 "回答内容："
+        return deepSeekChatClient.prompt(new Prompt(message, promptOptions))
+                .system(sp -> sp.param("voice", voice))
+                .user(u -> u.metadata("userId", "100001"))
+                .stream()
+                .chatResponse()
+                .mapNotNull(response -> {
+                    DeepSeekAssistantMessage assistantMessage = (DeepSeekAssistantMessage) response.getResult().getOutput();
+                    // 优先输出思考过程
+                    if (StringUtils.hasLength(assistantMessage.getReasoningContent())) {
+                        return assistantMessage.getReasoningContent();
+                    }
+                    // 再输出最终回答
+                    if (StringUtils.hasLength(assistantMessage.getText())) {
+                        return assistantMessage.getText();
+                    }
+
+                    return null;
+                })
+                .map(text -> Collections.singletonMap("context", text));
+    }
+
+    @Operation(summary = "对话前缀续写聊天")
+    @GetMapping("/chatPrefixCompletion")
+    public String chatPrefixCompletion(@Parameter(description = "输入问题，输出Java代码") @RequestParam(value = "message") String message) {
+        // TODO base_url修改后，异常未解决：Retry error. Retry count: 1, Exception: HTTP 404 - No response body available
+        // 此方法提示词要求输出Java代码
+        // Spring AI 1.1.6 需设置 base_url="https://api.deepseek.com/beta" 来开启Beta功能
+        logger.info("调用chatPrefixCompletion，输入问题：{}", message);
+
+        try {
+            // Deepseek助手消息，指定前缀为 Java代码块，强制模型输出 Java代码
+            DeepSeekAssistantMessage assistantMessage = DeepSeekAssistantMessage.prefixAssistantMessage("```java\n");
+            assistantMessage.setPrefix(true);
+
+            // 设置用户提示词
+            Prompt prompt = new Prompt(List.of(new UserMessage(message), assistantMessage));
+            // 设置stop参数设为 "\n```"，防止模型过多解释
+            ChatOptions option = ChatOptions.builder().stopSequences(List.of("\n```")).build();
+            return deepSeekChatClient.prompt(prompt)
+                    .options(option)
+                    .call()
+                    .content();
+        } catch (Exception e) {
+            logger.error(e.getMessage(), e);
+            return "对话前缀续写聊天功能繁忙，请稍后重试!";
+        }
+    }
+
+    @Operation(summary = "多轮思考示例")
+    @GetMapping("/chatReasoning2")
+    public String chatReasoning2() {
+        DeepSeekChatOptions promptOptions = DeepSeekChatOptions.builder().model(DeepSeekApi.ChatModel.DEEPSEEK_REASONER.getValue()).build();
+
+        // 第1轮推理聊天
+        List<Message> messages = new ArrayList<>();
+        messages.add(new UserMessage("java中，写一个判断单个字符串是否为空的工具类，尽量简洁不超过30行"));
+        ChatResponse response = deepSeekChatClient.prompt(new Prompt(messages, promptOptions)).call().chatResponse();
+
+        assert response != null;
+        DeepSeekAssistantMessage assistantMessage = (DeepSeekAssistantMessage) response.getResult().getOutput();
+        String reasoningContent1 = assistantMessage.getReasoningContent();
+        String text1 = assistantMessage.getText();
+        logger.info("思考过程1：{}", reasoningContent1);
+        logger.info("回答内容1：{}", text1);
+
+        // 第2轮推理聊天
+        messages.add(AssistantMessage.builder().content(Objects.requireNonNull(text1)).build());
+        messages.add(new UserMessage("在刚才工具类的基础上，继续简化代码实现"));
+        ChatResponse response2 = deepSeekChatClient.prompt(new Prompt(messages, promptOptions)).call().chatResponse();
+
+        assert response2 != null;
+        DeepSeekAssistantMessage assistantMessage2 = (DeepSeekAssistantMessage) response2.getResult().getOutput();
+        String reasoningContent2 = assistantMessage2.getReasoningContent();
+        String text2 = assistantMessage2.getText();
+        logger.info("思考过程2：{}", reasoningContent2);
+        logger.info("回答内容2：{}", text2);
+
+        return "思考过程：\n\n%s\n\n回答内容：\n\n%s".formatted(reasoningContent2, text2);
     }
 
     private List<UserAddress> getUserServiceList() {
