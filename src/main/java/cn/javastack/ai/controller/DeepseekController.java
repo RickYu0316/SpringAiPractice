@@ -32,9 +32,9 @@ import reactor.core.publisher.Flux;
 import java.util.*;
 
 /**
- * Deepseek 聊天控制器
+ * Deepseek 聊天Controller
  */
-@Tag(name = "Deepseek Spring AI 接口", description = "Deepseek Spring AI 接口文档")
+@Tag(name = "Deepseek SpringAI 接口", description = "Deepseek SpringAI 接口文档")
 @Slf4j
 @RestController
 @RequestMapping("/deepseek")
@@ -142,6 +142,7 @@ public class DeepseekController {
     @GetMapping("/chatPrefixCompletion")
     public String chatPrefixCompletion(@Parameter(description = "输入问题，输出Java代码") @RequestParam(value = "message") String message) {
         // TODO base_url修改后，异常未解决：Retry error. Retry count: 1, Exception: HTTP 404 - No response body available
+        // TODO 换一种思路实现：在Prompt的message后直接拼接内容：指定输出Java代码，无需解释内容
         // 此方法提示词要求输出Java代码
         // Spring AI 1.1.6 需设置 base_url="https://api.deepseek.com/beta" 来开启Beta功能
         logger.info("调用chatPrefixCompletion，输入问题：{}", message);
