@@ -1,6 +1,6 @@
 package cn.javastack.ai.controller;
 
-import cn.javastack.ai.config.OpenRouterProperties;
+import cn.javastack.ai.common.OpenRouterProperties;
 import cn.javastack.ai.common.OpenRouterChatRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;

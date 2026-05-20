@@ -1,4 +1,4 @@
-package cn.javastack.ai.config;
+package cn.javastack.ai.common;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
