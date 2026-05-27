@@ -44,6 +44,7 @@ public class OpenRouterController {
 
     private final ObjectMapper objectMapper;
 
+    // TODO 提取成 Utils工具类
     @Operation(summary = "OpenRouter聊天接口（动态模型）")
     @GetMapping("/chat")
     public String chat(OpenRouterChatRequest request) {

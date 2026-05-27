@@ -7,8 +7,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
@@ -40,7 +38,6 @@ import java.util.*;
 @RequestMapping("/deepseek")
 @RequiredArgsConstructor
 public class DeepseekController {
-    private static final Logger logger = LoggerFactory.getLogger(DeepseekController.class);
 
     private final DeepSeekChatModel chatModel;
     private final ChatClient deepSeekChatClient;
@@ -50,7 +47,7 @@ public class DeepseekController {
     @Operation(summary = "model简单聊天")
     @GetMapping("/modelChat")
     public String modelChat(@Parameter(description = "输入问题") @RequestParam(value = "message") String message) {
-        logger.info("调用modelChat，输入问题：{}", message);
+        log.info("调用modelChat，输入问题：{}", message);
         return chatModel.call(message);
     }
 
@@ -58,7 +55,7 @@ public class DeepseekController {
     @GetMapping("/clientChat")
     public String clientChat(@Parameter(description = "输入问题") @RequestParam(value = "message") String message,
                              @Parameter(description = "口吻") @RequestParam(value = "voice", required = false, defaultValue = "聊天AI助手") String voice) {
-        logger.info("调用clientChat，输入问题：{}。口吻：{}", message, voice);
+        log.info("调用clientChat，输入问题：{}。口吻：{}", message, voice);
         return deepSeekChatClient.prompt(message)
                 .system(sp -> sp.param("voice", voice))
                 .call()
@@ -68,7 +65,7 @@ public class DeepseekController {
     @Operation(summary = "model流式聊天")
     @GetMapping(value = "/modelStream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ChatResponse> modelStream(@Parameter(description = "输入问题") @RequestParam(value = "message") String message) {
-        logger.info("调用modelStream，输入问题：{}", message);
+        log.info("调用modelStream，输入问题：{}", message);
         Prompt prompt = new Prompt(new UserMessage(message));
         return chatModel.stream(prompt);
     }
@@ -77,7 +74,7 @@ public class DeepseekController {
     @GetMapping(value = "/clientStreamText", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<Map<String, String>> clientStreamText(@Parameter(description = "输入问题") @RequestParam(value = "message") String message,
                                                       @Parameter(description = "口吻") @RequestParam(value = "voice", required = false, defaultValue = "聊天AI助手") String voice) {
-        logger.info("调用clientStreamText，输入问题：{}。口吻：{}", message, voice);
+        log.info("调用clientStreamText，输入问题：{}。口吻：{}", message, voice);
         return deepSeekChatClient.prompt()
                 .system(sp -> sp.param("voice", voice))
                 .user(u -> u.text(message)
@@ -93,7 +90,7 @@ public class DeepseekController {
     @GetMapping("/chatReasoning")
     public String chatReasoning(@Parameter(description = "输入问题") @RequestParam(value = "message") String message,
                                 @Parameter(description = "口吻") @RequestParam(value = "voice", required = false, defaultValue = "聊天AI助手") String voice) {
-        logger.info("调用chatReasoning，输入问题：{}。口吻：{}", message, voice);
+        log.info("调用chatReasoning，输入问题：{}。口吻：{}", message, voice);
         // 使用推理模型
         DeepSeekChatOptions promptOptions = DeepSeekChatOptions.builder().model(DeepSeekApi.ChatModel.DEEPSEEK_REASONER.getValue()).build();
         ChatResponse chatResponse = deepSeekChatClient.prompt(new Prompt(message, promptOptions))
@@ -113,7 +110,7 @@ public class DeepseekController {
     @GetMapping(value = "/chatReasoningStream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<Map<String, String>> chatReasoningStream(@Parameter(description = "输入问题") @RequestParam(value = "message") String message,
                                                          @Parameter(description = "口吻") @RequestParam(value = "voice", required = false, defaultValue = "聊天AI助手") String voice) {
-        logger.info("调用chatReasoningStream，输入问题：{}。口吻：{}", message, voice);
+        log.info("调用chatReasoningStream，输入问题：{}。口吻：{}", message, voice);
         // 使用推理模型
         DeepSeekChatOptions promptOptions = DeepSeekChatOptions.builder().model(DeepSeekApi.ChatModel.DEEPSEEK_REASONER.getValue()).build();
         // TODO 在输出内容前，拼接 "思考过程：" 和 "回答内容："
@@ -145,7 +142,7 @@ public class DeepseekController {
         // TODO 换一种思路实现：在Prompt的message后直接拼接内容：指定输出Java代码，无需解释内容
         // 此方法提示词要求输出Java代码
         // Spring AI 1.1.6 需设置 base_url="https://api.deepseek.com/beta" 来开启Beta功能
-        logger.info("调用chatPrefixCompletion，输入问题：{}", message);
+        log.info("调用chatPrefixCompletion，输入问题：{}", message);
 
         try {
             // Deepseek助手消息，指定前缀为 Java代码块，强制模型输出 Java代码
@@ -161,7 +158,7 @@ public class DeepseekController {
                     .call()
                     .content();
         } catch (Exception e) {
-            logger.error(e.getMessage(), e);
+            log.error(e.getMessage(), e);
             return "对话前缀续写聊天功能繁忙，请稍后重试!";
         }
     }
@@ -180,8 +177,8 @@ public class DeepseekController {
         DeepSeekAssistantMessage assistantMessage = (DeepSeekAssistantMessage) response.getResult().getOutput();
         String reasoningContent1 = assistantMessage.getReasoningContent();
         String text1 = assistantMessage.getText();
-        logger.info("思考过程1：{}", reasoningContent1);
-        logger.info("回答内容1：{}", text1);
+        log.info("思考过程1：{}", reasoningContent1);
+        log.info("回答内容1：{}", text1);
 
         // 第2轮推理聊天
         messages.add(AssistantMessage.builder().content(Objects.requireNonNull(text1)).build());
@@ -192,8 +189,8 @@ public class DeepseekController {
         DeepSeekAssistantMessage assistantMessage2 = (DeepSeekAssistantMessage) response2.getResult().getOutput();
         String reasoningContent2 = assistantMessage2.getReasoningContent();
         String text2 = assistantMessage2.getText();
-        logger.info("思考过程2：{}", reasoningContent2);
-        logger.info("回答内容2：{}", text2);
+        log.info("思考过程2：{}", reasoningContent2);
+        log.info("回答内容2：{}", text2);
 
         return "思考过程：\n\n%s\n\n回答内容：\n\n%s".formatted(reasoningContent2, text2);
     }
