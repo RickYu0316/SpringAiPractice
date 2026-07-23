@@ -1,5 +1,6 @@
 package cn.javastack.ai.controller;
 
+import cn.hutool.core.util.StrUtil;
 import cn.javastack.ai.config.OpenRouterProperties;
 import cn.javastack.ai.common.OpenRouterChatRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -7,7 +8,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -84,7 +84,7 @@ public class OpenRouterController {
             OpenRouterChatCompletionResponse response = objectMapper.readValue(responseEntity.getBody(), OpenRouterChatCompletionResponse.class);
             String content = extractResponseContent(response);
             log.info("OpenRouter调用成功，模型：{}", model);
-            if (StringUtils.isBlank(content)) {
+            if (StrUtil.isBlank(content)) {
                 return "OpenRouter响应中未提取到文本内容，model=%s".formatted(model);
             }
             return content;

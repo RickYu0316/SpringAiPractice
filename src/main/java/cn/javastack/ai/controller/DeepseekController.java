@@ -135,7 +135,7 @@ public class DeepseekController {
                 .map(text -> Collections.singletonMap("context", text));
     }
 
-    @Operation(summary = "对话前缀续写聊天")
+    /*@Operation(summary = "对话前缀续写聊天")
     @GetMapping("/chatPrefixCompletion")
     public String chatPrefixCompletion(@Parameter(description = "输入问题，输出Java代码") @RequestParam(value = "message") String message) {
         // TODO base_url修改后，异常未解决：Retry error. Retry count: 1, Exception: HTTP 404 - No response body available
@@ -161,7 +161,7 @@ public class DeepseekController {
             log.error(e.getMessage(), e);
             return "对话前缀续写聊天功能繁忙，请稍后重试!";
         }
-    }
+    }*/
 
     @Operation(summary = "多轮思考示例")
     @GetMapping("/chatReasoning2")
