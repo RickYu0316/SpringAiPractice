@@ -1,0 +1,30 @@
+spring:
+  profiles:
+    active: dev
+  application:
+    name: spring-ai-practice
+
+server:
+  port: 8080
+
+# springdoc配置
+springdoc:
+  packages-to-scan: cn.javastack.ai.controller
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    operations-sorter: method
+    tags-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  info:
+    title: "Spring AI 接口"
+    version: "1.0.0"
+    description: "Spring AI 接口文档"
+    contact:
+      name: "team"
+      email: "team@example.com"
+    license:
+      name: "Apache 2.0"
+      url: "https://www.apache.org/licenses/LICENSE-2.0"
