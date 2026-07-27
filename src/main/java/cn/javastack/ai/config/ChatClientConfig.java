@@ -1,5 +1,6 @@
 package cn.javastack.ai.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.deepseek.DeepSeekChatModel;
 import org.springframework.ai.openai.OpenAiChatModel;
@@ -14,6 +15,15 @@ import org.springframework.context.annotation.Scope;
  */
 @Configuration
 public class ChatClientConfig {
+
+    /**
+     * bean未正确加载，手动加载
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public ObjectMapper objectMapper() {
+        return new ObjectMapper();
+    }
 
     /**
      * 默认使用 DeepSeek 构建 ChatClient.Builder
