@@ -7,7 +7,7 @@ import lombok.Builder;
 
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Date;
+import java.time.LocalDateTime;
 
 @Schema(description = "用户地址实体类")
 @Data
@@ -34,8 +34,8 @@ public class UserAddress implements Serializable {
     private Integer isDefault = 0;        // 是否为默认地址 (0-否, 1-是)
     private String addressTag;            // 地址标签
     @Builder.Default
-    private Date createTime = new Date(); // 创建时间
-    private Date updateTime;              // 更新时间
+    private LocalDateTime createTime = LocalDateTime.now(); // 创建时间
+    private LocalDateTime updateTime;              // 更新时间
     @Builder.Default
     private Integer isDeleted = 0;        // 逻辑删除标志 (0-未删除, 1-已删除)
 

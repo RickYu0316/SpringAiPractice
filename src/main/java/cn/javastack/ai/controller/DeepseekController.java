@@ -1,24 +1,20 @@
 package cn.javastack.ai.controller;
 
-import cn.javastack.ai.domain.UserAddress;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatResponse;
-import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.deepseek.DeepSeekAssistantMessage;
 import org.springframework.ai.deepseek.DeepSeekChatModel;
 import org.springframework.ai.deepseek.DeepSeekChatOptions;
 import org.springframework.ai.deepseek.api.DeepSeekApi;
-import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,19 +32,20 @@ import java.util.*;
 @Slf4j
 @RestController
 @RequestMapping("/deepseek")
-@RequiredArgsConstructor
 public class DeepseekController {
 
-    private final DeepSeekChatModel chatModel;
-    private final ChatClient deepSeekChatClient;
+    @Resource
+    private DeepSeekChatModel deepSeekChatModel;
+    @Resource
+    private ChatClient deepSeekChatClient;
     @Resource(name = "openAiChatClient")
-    private final ChatClient openAiChatClient;
+    private ChatClient openAiChatClient;
 
     @Operation(summary = "model简单聊天")
     @GetMapping("/modelChat")
     public String modelChat(@Parameter(description = "输入问题") @RequestParam(value = "message") String message) {
         log.info("调用modelChat，输入问题：{}", message);
-        return chatModel.call(message);
+        return deepSeekChatModel.call(message);
     }
 
     @Operation(summary = "client简单聊天")
@@ -67,7 +64,7 @@ public class DeepseekController {
     public Flux<ChatResponse> modelStream(@Parameter(description = "输入问题") @RequestParam(value = "message") String message) {
         log.info("调用modelStream，输入问题：{}", message);
         Prompt prompt = new Prompt(new UserMessage(message));
-        return chatModel.stream(prompt);
+        return deepSeekChatModel.stream(prompt);
     }
 
     @Operation(summary = "client流式聊天")
@@ -98,7 +95,7 @@ public class DeepseekController {
                 .call()
                 .chatResponse();
 
-        assert chatResponse != null;
+        Objects.requireNonNull(chatResponse, "chatResponse must not be null");
         DeepSeekAssistantMessage assistantMessage = (DeepSeekAssistantMessage) chatResponse.getResult().getOutput();
         String reasoningContent = assistantMessage.getReasoningContent();
         String text = assistantMessage.getText();
@@ -173,7 +170,7 @@ public class DeepseekController {
         messages.add(new UserMessage("java中，写一个判断单个字符串是否为空的工具类，尽量简洁不超过30行"));
         ChatResponse response = deepSeekChatClient.prompt(new Prompt(messages, promptOptions)).call().chatResponse();
 
-        assert response != null;
+        Objects.requireNonNull(response, "response must not be null");
         DeepSeekAssistantMessage assistantMessage = (DeepSeekAssistantMessage) response.getResult().getOutput();
         String reasoningContent1 = assistantMessage.getReasoningContent();
         String text1 = assistantMessage.getText();
@@ -185,7 +182,7 @@ public class DeepseekController {
         messages.add(new UserMessage("在刚才工具类的基础上，继续简化代码实现"));
         ChatResponse response2 = deepSeekChatClient.prompt(new Prompt(messages, promptOptions)).call().chatResponse();
 
-        assert response2 != null;
+        Objects.requireNonNull(response2, "response2 must not be null");
         DeepSeekAssistantMessage assistantMessage2 = (DeepSeekAssistantMessage) response2.getResult().getOutput();
         String reasoningContent2 = assistantMessage2.getReasoningContent();
         String text2 = assistantMessage2.getText();
@@ -193,21 +190,5 @@ public class DeepseekController {
         log.info("回答内容2：{}", text2);
 
         return "思考过程：\n\n%s\n\n回答内容：\n\n%s".formatted(reasoningContent2, text2);
-    }
-
-    private List<UserAddress> getUserServiceList() {
-        return deepSeekChatClient.prompt()
-                .user("获取最近活跃的前 5 个用户的住址列表")
-                .call()
-                .entity(new ParameterizedTypeReference<List<UserAddress>>() {
-                });
-    }
-
-    private List<UserAddress> getUserServiceList(String message) {
-        return deepSeekChatClient.prompt()
-                .user(message)
-                .call()
-                .entity(new ParameterizedTypeReference<List<UserAddress>>() {
-                });
     }
 }
