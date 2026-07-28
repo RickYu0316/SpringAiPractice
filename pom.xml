@@ -70,12 +70,6 @@
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
             <version>3.0.3</version>
         </dependency>
-
-        <dependency>
-            <groupId>me.paulschwarz</groupId>
-            <artifactId>spring-dotenv</artifactId>
-            <version>4.0.0</version>
-        </dependency>
     </dependencies>
     <dependencyManagement>
         <dependencies>
@@ -96,6 +90,12 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
+                    <!-- 仅放开未命名模块（即第三方JAR 如Netty）的本地调用权限，
+                         如果不设置，Java 25未来版本会直接阻止该调用，导致Netty无法加载本地库，应用启动失败。
+                         此处参数仅对 mvn spring-boot:run 生效；
+                         IDEA启动应用，在 VM options 中添加此参数；
+                         在生产Docker环境，也需要单独进行设置 -->
+                    <jvmArguments>--enable-native-access=ALL-UNNAMED</jvmArguments>
                     <excludes>
                         <exclude>
                             <groupId>org.projectlombok</groupId>
