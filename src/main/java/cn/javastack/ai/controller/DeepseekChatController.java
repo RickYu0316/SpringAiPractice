@@ -12,7 +12,6 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.deepseek.DeepSeekAssistantMessage;
-import org.springframework.ai.deepseek.DeepSeekChatModel;
 import org.springframework.ai.deepseek.DeepSeekChatOptions;
 import org.springframework.ai.deepseek.api.DeepSeekApi;
 import org.springframework.http.MediaType;
@@ -28,25 +27,16 @@ import java.util.*;
 /**
  * Deepseek 聊天Controller
  */
-@Tag(name = "Deepseek SpringAI 接口", description = "Deepseek SpringAI 接口文档")
+@Tag(name = "Deepseek 聊天接口", description = "Deepseek 聊天接口")
 @Slf4j
 @RestController
 @RequestMapping("/deepseek")
-public class DeepseekController {
+public class DeepseekChatController {
 
-    @Resource
-    private DeepSeekChatModel deepSeekChatModel;
     @Resource
     private ChatClient deepSeekChatClient;
     @Resource(name = "openAiChatClient")
     private ChatClient openAiChatClient;
-
-    @Operation(summary = "model简单聊天")
-    @GetMapping("/modelChat")
-    public String modelChat(@Parameter(description = "输入问题") @RequestParam(value = "message") String message) {
-        log.info("调用modelChat，输入问题：{}", message);
-        return deepSeekChatModel.call(message);
-    }
 
     @Operation(summary = "client简单聊天")
     @GetMapping("/clientChat")
@@ -57,14 +47,6 @@ public class DeepseekController {
                 .system(sp -> sp.param("voice", voice))
                 .call()
                 .content();
-    }
-
-    @Operation(summary = "model流式聊天")
-    @GetMapping(value = "/modelStream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<ChatResponse> modelStream(@Parameter(description = "输入问题") @RequestParam(value = "message") String message) {
-        log.info("调用modelStream，输入问题：{}", message);
-        Prompt prompt = new Prompt(new UserMessage(message));
-        return deepSeekChatModel.stream(prompt);
     }
 
     @Operation(summary = "client流式聊天")
@@ -131,34 +113,6 @@ public class DeepseekController {
                 })
                 .map(text -> Collections.singletonMap("context", text));
     }
-
-    /*@Operation(summary = "对话前缀续写聊天")
-    @GetMapping("/chatPrefixCompletion")
-    public String chatPrefixCompletion(@Parameter(description = "输入问题，输出Java代码") @RequestParam(value = "message") String message) {
-        // TODO base_url修改后，异常未解决：Retry error. Retry count: 1, Exception: HTTP 404 - No response body available
-        // TODO 换一种思路实现：在Prompt的message后直接拼接内容：指定输出Java代码，无需解释内容
-        // 此方法提示词要求输出Java代码
-        // Spring AI 1.1.6 需设置 base_url="https://api.deepseek.com/beta" 来开启Beta功能
-        log.info("调用chatPrefixCompletion，输入问题：{}", message);
-
-        try {
-            // Deepseek助手消息，指定前缀为 Java代码块，强制模型输出 Java代码
-            DeepSeekAssistantMessage assistantMessage = DeepSeekAssistantMessage.prefixAssistantMessage("```java\n");
-            assistantMessage.setPrefix(true);
-
-            // 设置用户提示词
-            Prompt prompt = new Prompt(List.of(new UserMessage(message), assistantMessage));
-            // 设置stop参数设为 "\n```"，防止模型过多解释
-            ChatOptions option = ChatOptions.builder().stopSequences(List.of("\n```")).build();
-            return deepSeekChatClient.prompt(prompt)
-                    .options(option)
-                    .call()
-                    .content();
-        } catch (Exception e) {
-            log.error(e.getMessage(), e);
-            return "对话前缀续写聊天功能繁忙，请稍后重试!";
-        }
-    }*/
 
     @Operation(summary = "多轮思考示例")
     @GetMapping("/chatReasoning2")

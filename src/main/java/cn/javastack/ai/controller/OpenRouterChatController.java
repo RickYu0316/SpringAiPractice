@@ -22,12 +22,12 @@ import java.util.Optional;
 /**
  * OpenRouter 聊天Controller
  */
-@Tag(name = "OpenRouter SpringAI 接口", description = "OpenRouter SpringAI 接口文档")
+@Tag(name = "OpenRouter 聊天接口", description = "OpenRouter 聊天接口")
 @Slf4j
 @RestController
 @RequestMapping("/openrouter")
 @RequiredArgsConstructor
-public class OpenRouterController {
+public class OpenRouterChatController {
 
     // OpenRouter代码输出格式约束
     private static final String CODE_BLOCK_FORMAT_PROMPT = """

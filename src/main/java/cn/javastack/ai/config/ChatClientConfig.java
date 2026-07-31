@@ -3,6 +3,7 @@ package cn.javastack.ai.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.deepseek.DeepSeekChatModel;
+import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
@@ -55,14 +56,32 @@ public class ChatClientConfig {
     }
 
     /**
-     * 可手动使用 OpenAi ChatClient
+     * 可手动使用 OpenAiChatClient（通过OpenRouter网关访问OpenAI模型）
      */
     @Bean
     public ChatClient openAiChatClient(OpenAiChatModel openAiChatModel) {
         return ChatClient.builder(openAiChatModel)
                 .defaultSystem(s -> s.text("OpenAI 聊天AI助手，以 {voice} 的口吻回答问题")
                         .metadata("assistantType", "chat")
-                        .metadata("model", "gpt-4o-mini")
+                        .metadata("model", "openai/gpt-4o-mini")
+                        .metadata("version", "1.0"))
+                .defaultUser(u -> u.text("Default user context")
+                        .metadata("userId", "default-user")
+                        .metadata("sessionId", "default-session")
+                        .metadata("messageId", "default-message")
+                        .metadata("priority", "high"))
+                .build();
+    }
+
+    /**
+     * 本地OllamaChatClient
+     */
+    @Bean
+    public ChatClient ollamaChatClient(OllamaChatModel ollamaChatModel) {
+        return ChatClient.builder(ollamaChatModel)
+                .defaultSystem(s -> s.text("本地Ollama AI助手，以 {voice} 的口吻回答问题")
+                        .metadata("assistantType", "chat")
+                        .metadata("model", "deepseek-v4-flash")
                         .metadata("version", "1.0"))
                 .defaultUser(u -> u.text("Default user context")
                         .metadata("userId", "default-user")

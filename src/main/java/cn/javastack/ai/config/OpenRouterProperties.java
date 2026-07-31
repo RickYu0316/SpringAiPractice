@@ -41,4 +41,24 @@ public class OpenRouterProperties {
      * 聊天补全接口路径
      */
     private String chatCompletionsPath;
+
+    /**
+     * 图像模型
+     */
+    private String imageModel;
+
+    /**
+     * 视频模型
+     */
+    private String videoModel;
+
+    /**
+     * 图像生成接口路径
+     */
+    private String imagePath;
+
+    /**
+     * 视频生成接口路径
+     */
+    private String videoPath;
 }
