@@ -35,8 +35,6 @@ public class DeepseekChatController {
 
     @Resource
     private ChatClient deepSeekChatClient;
-    @Resource(name = "openAiChatClient")
-    private ChatClient openAiChatClient;
 
     @Operation(summary = "client简单聊天")
     @GetMapping("/clientChat")

@@ -9,7 +9,7 @@ server:
 
 # springdoc配置
 springdoc:
-  packages-to-scan: cn.javastack.ai.controller
+  packages-to-scan: cn.javastack.ai.controller,cn.javastack.ai.handler
   swagger-ui:
     path: /swagger-ui.html
     enabled: true

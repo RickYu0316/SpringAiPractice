@@ -42,8 +42,8 @@ public class ImageController {
             @Parameter(description = "图像模型") @RequestParam(value = "model", required = false) String model,
             @Parameter(description = "尺寸，如 1024x1024") @RequestParam(value = "size", required = false) String size,
             @Parameter(description = "质量：auto/low/medium/high") @RequestParam(value = "quality", required = false) String quality,
-            @Parameter(description = "数量 1-10") @RequestParam(value = "num", required = false) Integer num) {
-        log.info("调用图像生成，prompt：{}，model：{}，size：{}，quality：{}，num：{}", prompt, model, size, quality, num);
+            @Parameter(description = "数量 1-10") @RequestParam(value = "n", required = false) Integer n) {
+        log.info("调用图像生成，prompt：{}，model：{}，size：{}，quality：{}，n：{}", prompt, model, size, quality, n);
 
         Map<String, Object> body = new HashMap<>();
         body.put("model", StringUtils.hasLength(model) ? model : openRouterProperties.getImageModel());
@@ -54,8 +54,8 @@ public class ImageController {
         if (StringUtils.hasLength(quality)) {
             body.put("quality", quality);
         }
-        if (num != null) {
-            body.put("num", num);
+        if (n != null) {
+            body.put("n", n);
         }
 
         String uri = openRouterProperties.getBaseUrl() + openRouterProperties.getImagePath();
