@@ -30,6 +30,7 @@ public final class OpenRouterResponseUtils {
     }
 
     /**
+     * 从Map类型聊天响应中提取文本内容
      */
     @SuppressWarnings("unchecked")
     public static String extractContent(Map<String, Object> response) {

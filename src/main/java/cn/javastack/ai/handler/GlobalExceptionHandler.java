@@ -6,6 +6,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.util.Map;
 
@@ -33,6 +35,26 @@ public class GlobalExceptionHandler {
                 .body(Map.of(
                         "error", "缺少必填参数",
                         "parameter", e.getParameterName()
+                ));
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Map<String, String>> handleTypeMismatch(MethodArgumentTypeMismatchException e) {
+        log.warn("请求参数类型错误：{}", e.getName());
+        return ResponseEntity.badRequest()
+                .body(Map.of(
+                        "error", "参数类型错误",
+                        "parameter", e.getName()
+                ));
+    }
+
+    @ExceptionHandler(RestClientException.class)
+    public ResponseEntity<Map<String, String>> handleRestClient(RestClientException e) {
+        log.error("调用上游接口失败：{}", e.getMessage(), e);
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(Map.of(
+                        "error", "上游接口调用失败",
+                        "message", e.getMessage() != null ? e.getMessage() : "请稍后重试"
                 ));
     }
 
