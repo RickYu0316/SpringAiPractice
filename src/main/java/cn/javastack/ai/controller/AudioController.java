@@ -39,13 +39,13 @@ public class AudioController {
     @GetMapping(value = "/speech", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
     public byte[] speech(
             @Parameter(description = "要转语音的文本") @RequestParam("text") String text,
-            @Parameter(description = "音色：alloy") @RequestParam(value = "voice", required = false, defaultValue = "alloy") String voice) {
+            @Parameter(description = "音色：alloy/ethan") @RequestParam(value = "voice", required = false, defaultValue = "alloy") String voice) {
         log.info("调用TTS，text：{}，voice：{}", text, voice);
 
-        // 以yaml默认options为准（含配置的model），避免model被builder默认值覆盖
-        OpenAiAudioSpeechOptions defaultOptions = (OpenAiAudioSpeechOptions) audioSpeechModel.getOptions();
+        // 以yaml中配置的options为准，避免model被builder默认值覆盖
+        OpenAiAudioSpeechOptions yamlOptions = (OpenAiAudioSpeechOptions) audioSpeechModel.getOptions();
         TextToSpeechPrompt prompt = new TextToSpeechPrompt(text, OpenAiAudioSpeechOptions.builder()
-                .from(defaultOptions)
+                .from(yamlOptions)
                 .voice(voice)
                 .build());
         TextToSpeechResponse response = audioSpeechModel.call(prompt);
