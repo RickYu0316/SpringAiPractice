@@ -1,4 +1,4 @@
-package cn.javastack.ai.common;
+package cn.javastack.ai.dto.openrouter;
 
 import lombok.Data;
 
@@ -14,8 +14,8 @@ public class OpenRouterChatRequest {
     private String message;
 
     /**
-     * 模型名称（需包含组织前缀）
+     * 模型名称（需包含组织前缀），为空时使用配置的 default-model
      */
-    private String model = "openai/gpt-4o-mini";
+    private String model;
 
 }

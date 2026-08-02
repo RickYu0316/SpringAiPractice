@@ -39,7 +39,7 @@ spring:
       base-url: ${OPENROUTER_BASE_URL:https://openrouter.ai/api}
       api-key: ${OPENROUTER_API_KEY}
       app-name: ${spring.application.name}
-      site-url: http://localhost:8080
+      site-url: ${OPENROUTER_SITE_URL:http://localhost:8080}
       default-model: ${OPENROUTER_DEFAULT_MODEL:openai/gpt-5.6-sol}
       chat-completions-path: /v1/chat/completions
       image-model: ${OPENROUTER_IMAGE_MODEL:openai/gpt-image-2}

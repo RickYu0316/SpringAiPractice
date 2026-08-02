@@ -2,6 +2,7 @@ package cn.javastack.ai.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.deepseek.DeepSeekChatModel;
 import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.ai.openai.OpenAiChatModel;
@@ -61,17 +62,7 @@ public class ChatClientConfig {
     @Primary
     @Bean
     public ChatClient deepSeekChatClient(DeepSeekChatModel deepSeekChatModel) {
-        return ChatClient.builder(deepSeekChatModel)
-                .defaultSystem(s -> s.text("DeepSeek 聊天AI助手，以 {voice} 的口吻回答问题")
-                        .metadata("assistantType", "chat")
-                        .metadata("model", deepSeekModel)
-                        .metadata("version", "1.0"))
-                .defaultUser(u -> u.text("Default user context")
-                        .metadata("userId", "default-user")
-                        .metadata("sessionId", "default-session")
-                        .metadata("messageId", "default-message")
-                        .metadata("priority", "high"))
-                .build();
+        return buildChatClient(deepSeekChatModel, "DeepSeek 聊天AI助手，以 {voice} 的口吻回答问题", deepSeekModel);
     }
 
     /**
@@ -79,17 +70,7 @@ public class ChatClientConfig {
      */
     @Bean
     public ChatClient openAiChatClient(OpenAiChatModel openAiChatModel) {
-        return ChatClient.builder(openAiChatModel)
-                .defaultSystem(s -> s.text("OpenAI 聊天AI助手，以 {voice} 的口吻回答问题")
-                        .metadata("assistantType", "chat")
-                        .metadata("model", openAiModel)
-                        .metadata("version", "1.0"))
-                .defaultUser(u -> u.text("Default user context")
-                        .metadata("userId", "default-user")
-                        .metadata("sessionId", "default-session")
-                        .metadata("messageId", "default-message")
-                        .metadata("priority", "high"))
-                .build();
+        return buildChatClient(openAiChatModel, "OpenAI 聊天AI助手，以 {voice} 的口吻回答问题", openAiModel);
     }
 
     /**
@@ -97,10 +78,17 @@ public class ChatClientConfig {
      */
     @Bean
     public ChatClient ollamaChatClient(OllamaChatModel ollamaChatModel) {
-        return ChatClient.builder(ollamaChatModel)
-                .defaultSystem(s -> s.text("本地Ollama AI助手，以 {voice} 的口吻回答问题")
+        return buildChatClient(ollamaChatModel, "本地Ollama AI助手，以 {voice} 的口吻回答问题", ollamaModel);
+    }
+
+    /**
+     * 统一构建带默认System/User上下文的 ChatClient
+     */
+    private ChatClient buildChatClient(ChatModel chatModel, String systemText, String modelName) {
+        return ChatClient.builder(chatModel)
+                .defaultSystem(s -> s.text(systemText)
                         .metadata("assistantType", "chat")
-                        .metadata("model", ollamaModel)
+                        .metadata("model", modelName)
                         .metadata("version", "1.0"))
                 .defaultUser(u -> u.text("Default user context")
                         .metadata("userId", "default-user")

@@ -3,6 +3,7 @@ package cn.javastack.ai.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.audio.transcription.TranscriptionModel;
 import org.springframework.ai.audio.tts.TextToSpeechModel;
@@ -10,9 +11,12 @@ import org.springframework.ai.audio.tts.TextToSpeechPrompt;
 import org.springframework.ai.audio.tts.TextToSpeechResponse;
 import org.springframework.ai.openai.OpenAiAudioSpeechOptions;
 import org.springframework.core.io.ByteArrayResource;
-import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
@@ -25,10 +29,10 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/audio")
 public class AudioController {
 
-    @jakarta.annotation.Resource(name = "openAiSdkAudioSpeechModel")
+    @Resource(name = "openAiSdkAudioSpeechModel")
     private TextToSpeechModel audioSpeechModel;
 
-    @jakarta.annotation.Resource(name = "openAiSdkAudioTranscriptionModel")
+    @Resource(name = "openAiSdkAudioTranscriptionModel")
     private TranscriptionModel audioTranscriptionModel;
 
     @Operation(summary = "文本转语音 TTS")
@@ -50,7 +54,7 @@ public class AudioController {
         log.info("调用STT，文件名：{}，大小：{} bytes", file.getOriginalFilename(), file.getSize());
 
         try {
-            Resource audioResource = new ByteArrayResource(file.getBytes()) {
+            org.springframework.core.io.Resource audioResource = new ByteArrayResource(file.getBytes()) {
                 @Override
                 public String getFilename() {
                     return file.getOriginalFilename();
