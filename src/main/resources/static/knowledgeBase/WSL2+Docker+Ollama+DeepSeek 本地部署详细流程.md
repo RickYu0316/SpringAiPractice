@@ -24,8 +24,9 @@
 - Docker Engine 29.7.1（由 systemd 托管，开机自启）
 - Ollama 0.32.5 容器 + `deepseek-r1:7b` 模型（4.7GB）
 - **Open WebUI** 图形界面已部署（`http://localhost:3000`，浏览器网页对话）
+- **Portainer** 容器管理界面已部署（`https://localhost:9443`，可视化管理容器/镜像/卷）
 - 由于 WSL 内缺 `/dev/kfd`，**ROCm GPU 加速不可用，走 CPU 推理**，实测约 11.6 token/s
-- 开机后 Docker、Ollama、Open WebUI 容器**全部自动恢复**，无需手动操作
+- WSL 空闲不再自动关机（`.wslconfig` 双 idle timeout）；打开任意 WSL 终端即拉起 Docker → 三容器自动恢复（手动启动方案，无开机自启）
 
 ### 国内网络要点速览
 
@@ -492,6 +493,7 @@ http://localhost:8080/ollama/chat?message=你好
 docker run -d --name open-webui --restart unless-stopped \
   -p 3000:8080 \
   -e OLLAMA_BASE_URL=http://host.docker.internal:11434 \
+  -e HF_HUB_OFFLINE=1 \
   -v open-webui:/app/backend/data \
   --add-host host.docker.internal:host-gateway \
   ghcr.io/open-webui/open-webui:main
@@ -501,10 +503,10 @@ docker run -d --name open-webui --restart unless-stopped \
 
 - `-p 3000:8080`：浏览器访问 `localhost:3000`，容器内服务跑在 8080。
 - `OLLAMA_BASE_URL=http://host.docker.internal:11434`：让 Open WebUI 通过 `host.docker.internal` 指向宿主（WSL）的 Ollama 端口 11434。
+- `-e HF_HUB_OFFLINE=1`：**必须加（坑⑨）**。RAG 嵌入向量模型 `sentence-transformers/all-MiniLM-L6-v2` 的缓存就在 volume 里（`/app/backend/data/cache/embedding/models`），但 huggingface_hub 即使命中缓存仍会**联网校验 huggingface.co**，国内网络下连接卡死 → 启动永远停在 "Waiting for application startup"，3000 端口无响应、healthcheck 一直 `starting`。离线模式直接从本地缓存加载、不做任何联网，秒启动。
 - `--add-host host.docker.internal:host-gateway`：WSL 下必须加，否则容器内无法解析 `host.docker.internal`。
-- `-v open-webui:/app/backend/data`：**持久化卷**（账号、会话、上传文件、RAG 知识库都存这里），升级/重建不丢。
-- `--restart unless-stopped`：配合 systemd 开机自愈。
-- 首次启动会自动下载**嵌入向量模型**（`sentence-transformers/all-MiniLM-L6-v2`，约 80MB）用于 RAG 知识库，属正常现象。
+- `-v open-webui:/app/backend/data`：**持久化卷**（账号、会话、上传文件、RAG 知识库、嵌入模型缓存都存这里），升级/重建不丢。
+- `--restart unless-stopped`：配合 systemd，WSL 启动后自动拉起。
 
 验证：
 
@@ -555,6 +557,7 @@ wsl -d Ubuntu -- bash -lc 'docker run --rm -v open-webui:/data -v $(pwd):/backup
 | 症状 | 检查与修复 |
 |------|-----------|
 | `localhost:3000` 打不开 | `docker ps` 看 open-webui 是否 healthy；不在则 `docker start open-webui`；看 `docker logs open-webui` |
+| 启动卡在 "Waiting for application startup"，端口无响应、healthcheck 一直 `starting` | **HF 联网校验卡死（坑⑨）**：重建容器时漏了 `-e HF_HUB_OFFLINE=1`。加上即从 volume 缓存离线加载秒启动；若缓存损坏再删 `/app/backend/data/cache/embedding/models` 后重启让其重建 |
 | 对话报「无法连接 Ollama」 | 确认 ollama 容器在跑；确认 env：`docker inspect open-webui | grep OLLAMA_BASE_URL` 应为 `host.docker.internal:11434`；容器内测 `docker exec open-webui curl http://host.docker.internal:11434` |
 | 第一次提问特别慢 | 首次要加载 embedding 模型 + 7b CPU 推理，属正常，稍等即可 |
 | 升级后数据没了 | 检查升级命令是否漏了 `-v open-webui:/app/backend/data`；旧卷还在就补挂载 |
@@ -565,7 +568,27 @@ wsl -d Ubuntu -- bash -lc 'docker run --rm -v open-webui:/data -v $(pwd):/backup
 - 3000 端口界面**带账号体系**，但默认只应在本机使用，勿直接映射到公网；
 - 浏览器侧要**手动注册第一个账号**（admin），后续账号也由该界面管理；
 - 升级频率可参考官方 GitHub Releases，`main` 镜像滚动更新，重拉即可；
-- Open WebUI 与 Spring 项目的 `OllamaController` 互不影响，两套入口都能用同一个 Ollama。
+- Open WebUI 与 Spring 项目的 `OllamaController` 互不影响，两套入口都能用同一个 Ollama；
+- **容器必须保留 `-e HF_HUB_OFFLINE=1`**，一旦去掉，国内网络下重启必卡启动（见第 28 条坑⑨）；
+- **务必定期备份**：`kill -9` 事故曾导致本卷数据库被清空，账号/会话不可找回（见第 34.1 条）。
+
+### 32.1 Portainer（可选，Docker 图形管理界面）
+
+> 浏览器端管理容器/镜像/卷的图形界面（Docker CE 默认无 UI，装它纯属方便）。
+
+```bash
+docker run -d --name portainer --restart always \
+  -p 9443:9443 -p 8000:8000 \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v portainer_data:/data \
+  portainer/portainer-ce:latest
+```
+
+- 访问 **`https://localhost:9443`**（自签证书，浏览器提示"不安全"属正常，点继续）；
+- 首次访问设置 admin 密码；之后可可视化管理容器、镜像、卷、网络、日志；
+- 8080 仅限本地使用，勿映射公网；`portainer_data` 卷存其自身配置。
+
+> 当前共三个容器：`ollama`(11434)、`open-webui`(3000)、`portainer`(9443，HTTPS)。
 
 ---
 
@@ -599,18 +622,50 @@ docker exec ollama ollama list      # 确认 deepseek-r1:7b 还在（4.7GB，未
 
 **经验**：`-v ollama:/root/.ollama` 卷保住了 4.7GB 模型，重建容器零损失。Docker 正常停启**必须**用 `systemctl stop/restart docker`，禁用 `kill -9 dockerd`。
 
+### 34.1 二次事故：Open WebUI 数据库被清空（kill -9 的间接后果）
+
+**现象**：强杀恢复后发现 open-webui 的 `webui.db`（/app/backend/data 卷内）里的 `user`/`auth`/`chat`/`message` 等表**全部为空**，账号与历史会话丢失，只能重新注册。
+
+**原因推测**：`kill -9 dockerd` 导致卷内 SQLite 数据库文件损坏/被重置（`webui.db-wal` 为 0 字节，无回滚数据可恢复）。
+
+**恢复**：无备份无法找回，直接访问 `http://localhost:3000` 重新注册即可（本地界面）。
+
+**教训**：
+1. `kill -9` 不仅坏容器 RWLayer，还可能损坏**卷内数据库**——危害比预想更大；
+2. 账号/会话类数据**务必定期备份**：`wsl -d Ubuntu -- bash -lc 'docker run --rm -v open-webui:/data -v $(pwd):/backup alpine tar czf /backup/openwebui-$(date +%F).tar.gz -C /data .'`
+3. Ollama 模型在 `-v ollama:/root/.ollama` 卷中未受损（本次零损失），Open WebUI 数据则没那么幸运，两者备份策略不同。
+
 ---
 
 ## 十、日常使用
 
-### 35. 开机自愈链路（无需手动操作）
+### 35. WSL 空闲自动停机与启动方式（坑⑩：关窗口就关机）
 
+**现象**：WSL 有两个独立的"空闲计时器"，关掉最后一个终端/控制台窗口后，实例会按各自的超时被终止（默认仅 15 秒/60 秒），容器随之中断。之前只改 `vmIdleTimeout` 无效，因为真正先触发的是会话级 `instanceIdleTimeout`。
+
+**根因**：两个计时器必须**同时关闭**（`C:\Users\YU\.wslconfig`）：
+
+```ini
+[general]
+instanceIdleTimeout=-1
+[wsl2]
+memory=24GB
+swap=4GB
+processors=8
+vmIdleTimeout=-1
 ```
-Windows 开机 → WSL2 随用随启动 → systemd 启动
-  → docker.service（enable 开机自启）
-    → ollama 容器（--restart unless-stopped 自动拉起）→ 11434 端口就绪
-    → open-webui 容器（--restart unless-stopped 自动拉起）→ 3000 端口就绪
+
+改完执行 `wsl --shutdown` 生效。已实测：关闭所有终端后等 90 秒以上，实例与三个容器仍保持 Running。
+
+**启动方式（手动方案，无开机自启）**——每次要用时执行一次：
+
+```powershell
+wsl -d Ubuntu -- bash -lc 'systemctl start docker 2>/dev/null; sleep 5; docker ps'
 ```
+
+WSL 启动后即自愈：docker（systemd enable）→ ollama / open-webui / portainer 容器（`--restart unless-stopped` 自动拉起）→ 11434 / 3000 / 9443 端口就绪。
+
+> 已尝试过的方案（均被否/失败）：计划任务开机自启（无管理员权限，Access denied）；启动文件夹快捷方式（需授权被拒）。最终采用手动启动。想彻底关机时执行 `wsl --shutdown`。
 
 ### 36. 快速验证
 
@@ -637,6 +692,8 @@ wsl -d Ubuntu -- docker exec -it ollama ollama run deepseek-r1:7b
 
 | 用途 | 命令 |
 |------|------|
+| 手动启动全栈 | `wsl -d Ubuntu -- bash -lc 'systemctl start docker 2>/dev/null; sleep 5; docker ps'` |
+| 看 WSL 实例状态 | `wsl -l -v`（Running / Stopped） |
 | 看容器状态 | `wsl -d Ubuntu -- docker ps -a` |
 | 手动启容器 | `wsl -d Ubuntu -- docker start ollama` |
 | 启 Open WebUI | `wsl -d Ubuntu -- docker start open-webui` |
@@ -661,6 +718,7 @@ wsl -d Ubuntu -- docker exec -it ollama ollama run deepseek-r1:7b
 | 容器重建后模型不见了 | 检查是否用了 `-v ollama:/root/.ollama`；若用了旧卷，`ollama pull` 秒回因为已有缓存则正常 |
 | 项目 `/ollama/chat` 报模型不存在 | 检查 `.env` 是否设了 `OLLAMA_CHAT_MODEL=deepseek-r1:7b`（yaml 默认是 `deepseek-r1:14b`，本地未装该模型） |
 | WSL 内存不足 | 改 `.wslconfig` 后 `wsl --shutdown` 生效 |
+| 关掉终端后 WSL 自动关机 | `.wslconfig` 里 `[general] instanceIdleTimeout=-1` 与 `[wsl2] vmIdleTimeout=-1` 都要设，见第 35 条 |
 
 ---
 
@@ -680,6 +738,9 @@ wsl -d Ubuntu -- docker exec -it ollama ollama run deepseek-r1:7b
 12. **中文乱码**：PowerShell 看中文输出先执行 `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`。
 13. **日志位置**：dockerd 手动启动日志 `/var/log/dockerd.log`（systemd 托管后走 `journalctl -u docker`）；容器日志 `docker logs ollama` / `docker logs open-webui`；模型下载日志 `/var/log/ollama-pull.log`。
 14. **不要用 PowerShell `Set-Content`/`Out-File` 写带中文注释的 Java 文件**：UTF-8 中文会被破坏，Java 源码一律用编辑器/IDE 写入。
+15. **Open WebUI 容器必须带 `-e HF_HUB_OFFLINE=1`**：国内网络下 huggingface.co 的联网校验会卡死启动（坑⑨，见第 28 条）；去掉后重建容器必复现。
+16. **WSL 空闲保活**：`.wslconfig` 里 `[general] instanceIdleTimeout` 与 `[wsl2] vmIdleTimeout` 都必须设 `-1`，只改一个无效（坑⑩，见第 35 条）。
+17. **定期备份 open-webui 卷**：`kill -9` 事故曾清空其数据库（账号/会话不可找回，见第 34.1 条）；备份命令见第 30 条。Ollama 模型卷含 4.7GB 模型，一般无需备份。
 
 ---
 
@@ -698,6 +759,6 @@ wsl -d Ubuntu -- docker exec -it ollama ollama run deepseek-r1:7b
 | `D:\JavaProjects\SpringAiPractice\.env` | 项目对接配置（git 忽略） |
 | `D:\JavaProjects\SpringAiPractice\src\main\resources\static\knowledgeBase\` | 本文档所在目录 |
 
-> 当前运行容器：`ollama`（11434，模型服务）、`open-webui`（3000，网页界面）。两者均 `--restart unless-stopped`，由 systemd 托管 Docker 实现开机自愈。
+> 当前运行容器：`ollama`（11434，模型服务）、`open-webui`（3000，网页界面）、`portainer`（9443，HTTPS 管理界面）。三者均 `--restart unless-stopped`，WSL 启动后由 systemd 托管 Docker 自动拉起。
 
 > 临时部署脚本位于 `C:\Users\YU\AppData\Local\Temp\opencode\`，仅作排查参考，非必需文件。
