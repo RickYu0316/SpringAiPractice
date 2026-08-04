@@ -1,6 +1,7 @@
 package cn.javastack.ai.client;
 
 import cn.hutool.core.util.StrUtil;
+import cn.javastack.ai.common.GeneratedMediaCache;
 import cn.javastack.ai.config.OpenRouterProperties;
 import cn.javastack.ai.dto.openrouter.OpenRouterChatCompletionRequest;
 import cn.javastack.ai.dto.openrouter.OpenRouterChatCompletionResponse;
@@ -13,7 +14,10 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,6 +52,8 @@ public class OpenRouterClient {
     private final RestClient openRouterRestClient;
 
     private final OpenRouterProperties openRouterProperties;
+
+    private final GeneratedMediaCache generatedMediaCache;
 
     /**
      * OpenRouter 聊天（动态模型）
@@ -88,20 +94,14 @@ public class OpenRouterClient {
      * 不匹配，因此不使用SpringAI的OpenAiImageModel，改为RestClient直连 OpenRouter
      */
     @SuppressWarnings("unchecked")
-    public Map<String, Object> generateImage(String prompt, String model, String size, String quality, Integer n) {
-        log.info("调用图像生成，prompt：{}，model：{}，size：{}，quality：{}，n：{}", prompt, model, size, quality, n);
+    public Map<String, Object> generateImage(String prompt, String model, String size) {
+        log.info("调用图像生成，prompt：{}，model：{}，size：{}", prompt, model, size);
 
         Map<String, Object> body = new HashMap<>();
         body.put("model", StringUtils.hasLength(model) ? model : openRouterProperties.getImageModel());
         body.put("prompt", prompt);
         if (StringUtils.hasLength(size)) {
             body.put("size", size);
-        }
-        if (StringUtils.hasLength(quality)) {
-            body.put("quality", quality);
-        }
-        if (n != null) {
-            body.put("n", n);
         }
 
         Map<String, Object> response = openRouterRestClient.post()
@@ -118,7 +118,20 @@ public class OpenRouterClient {
         result.put("created", response != null ? response.get("created") : null);
         result.put("count", images.size());
         result.put("model", body.get("model"));
-        result.put("images", images);
+        String base = ServletUriComponentsBuilder.fromCurrentContextPath().toUriString();
+        List<String> urls = new ArrayList<>();
+        for (Map<String, Object> image : images) {
+            String b64 = (String) image.get("b64_json");
+            if (b64 == null) {
+                continue;
+            }
+            String mediaType = image.get("media_type") != null
+                    ? image.get("media_type").toString()
+                    : "image/png";
+            byte[] data = Base64.getDecoder().decode(b64);
+            urls.add(base + "/image/download/" + generatedMediaCache.store(data, mediaType));
+        }
+        result.put("urls", urls);
         return result;
     }
 

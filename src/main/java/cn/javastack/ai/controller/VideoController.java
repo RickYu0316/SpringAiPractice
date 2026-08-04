@@ -36,10 +36,8 @@ public class VideoController {
         return openRouterClient.generateVideo(prompt, model, duration, resolution, aspectRatio);
     }
 
-    @Operation(summary = "查询视频生成任务状态")
     @GetMapping("/status/{jobId}")
-    public Map<String, Object> status(
-            @Parameter(description = "任务ID") @PathVariable("jobId") String jobId) {
+    public Map<String, Object> status(@PathVariable("jobId") String jobId) {
         return openRouterClient.getVideoStatus(jobId);
     }
 
