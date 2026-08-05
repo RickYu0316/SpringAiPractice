@@ -6,6 +6,7 @@ import cn.javastack.ai.dto.openrouter.OpenRouterMessage;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -44,5 +45,24 @@ public final class OpenRouterResponseUtils {
         Map<String, Object> choice = (Map<String, Object>) choices.getFirst();
         Map<String, Object> message = (Map<String, Object>) choice.get("message");
         return message != null ? (String) message.get("content") : null;
+    }
+
+    /**
+     * 从Map类型聊天响应中提取错误信息，无错误返回 null
+     * OpenRouter错误格式：{"error":{"message":"...","code":400}}
+     */
+    public static String extractError(Map<String, Object> response) {
+        if (response == null) {
+            return null;
+        }
+        Object errorObj = response.get("error");
+        if (errorObj instanceof Map<?, ?> error) {
+            Object message = error.get("message");
+            return Objects.requireNonNullElse(message, error).toString();
+        }
+        if (errorObj != null) {
+            return errorObj.toString();
+        }
+        return null;
     }
 }

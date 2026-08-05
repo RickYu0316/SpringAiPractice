@@ -20,6 +20,7 @@ public final class MediaTypeUtils {
             case "audio/mpeg", "audio/mp3" -> "mp3";
             case "audio/wav" -> "wav";
             case "audio/flac" -> "flac";
+            case "video/mp4" -> "mp4";
             default -> "bin";
         };
     }

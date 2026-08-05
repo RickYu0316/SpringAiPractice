@@ -3,6 +3,11 @@ spring:
     active: dev
   application:
     name: spring-ai-practice
+  servlet:
+    multipart:
+      # 上传大小限制
+      max-file-size: 50MB
+      max-request-size: 50MB
 
 server:
   port: 8080

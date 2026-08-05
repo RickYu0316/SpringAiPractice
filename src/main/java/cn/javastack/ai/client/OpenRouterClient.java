@@ -49,6 +49,13 @@ public class OpenRouterClient {
             new ParameterizedTypeReference<>() {
             };
 
+    /**
+     * bytedance/seedance-2.0 模型支持的视频时长范围（秒）
+     */
+    private static final int MIN_DURATION_SECONDS = 4;
+
+    private static final int MAX_DURATION_SECONDS = 15;
+
     private final RestClient openRouterRestClient;
 
     private final OpenRouterProperties openRouterProperties;
@@ -62,6 +69,7 @@ public class OpenRouterClient {
         String model = StringUtils.hasLength(request.getModel())
                 ? request.getModel()
                 : openRouterProperties.getDefaultModel();
+        log.info("调用OpenRouter Chat，model：{}，prompt：{}", model, request.getMessage());
         try {
             OpenRouterChatCompletionRequest completionRequest = new OpenRouterChatCompletionRequest(
                     model,
@@ -77,7 +85,6 @@ public class OpenRouterClient {
                     .body(OpenRouterChatCompletionResponse.class);
 
             String content = OpenRouterResponseUtils.extractContent(response);
-            log.info("OpenRouter调用成功，模型：{}", model);
             if (StrUtil.isBlank(content)) {
                 return "OpenRouter响应中未提取到文本内容，model=%s".formatted(model);
             }
@@ -136,11 +143,14 @@ public class OpenRouterClient {
     }
 
     /**
-     * 视频生成异步任务
-     * 视频生成：OpenRouter异步接口 /v1/videos（提交任务→轮询状态→下载）
+     * 提交视频生成任务（异步接口）
      */
-    public Map<String, Object> generateVideo(String prompt, String model, Integer duration, String resolution, String aspectRatio) {
-        log.info("提交视频生成任务，prompt：{}，model：{}", prompt, model);
+    public String submitVideo(String prompt, String model, Integer duration, String resolution, String aspectRatio) {
+        log.info("提交视频生成任务，prompt：{}，model：{}，duration：{}，resolution：{}，aspectRatio：{}", prompt, model, duration, resolution, aspectRatio);
+
+        if (duration != null && (duration < MIN_DURATION_SECONDS || duration > MAX_DURATION_SECONDS)) {
+            throw new IllegalArgumentException("视频时长仅支持 %d-%d 秒".formatted(MIN_DURATION_SECONDS, MAX_DURATION_SECONDS));
+        }
 
         Map<String, Object> body = new HashMap<>();
         body.put("model", StringUtils.hasLength(model) ? model : openRouterProperties.getVideoModel());
@@ -155,13 +165,17 @@ public class OpenRouterClient {
             body.put("aspect_ratio", aspectRatio);
         }
 
-        Map<String, Object> response = openRouterRestClient.post()
+        Map<String, Object> submitResponse = openRouterRestClient.post()
                 .uri(openRouterProperties.getVideoPath())
                 .body(body)
                 .retrieve()
                 .body(MAP_TYPE);
-        log.info("视频生成任务已提交，jobId：{}", response != null ? response.get("id") : null);
-        return response;
+        String jobId = submitResponse != null ? (String) submitResponse.get("id") : null;
+        if (!StringUtils.hasLength(jobId)) {
+            throw new RuntimeException("视频生成任务提交失败：" + submitResponse);
+        }
+        log.info("视频生成任务已提交，jobId：{}", jobId);
+        return jobId;
     }
 
     /**
@@ -176,11 +190,25 @@ public class OpenRouterClient {
     }
 
     /**
+     * 下载远程已完成的视频内容
+     */
+    public byte[] downloadVideo(String jobId) {
+        byte[] data = openRouterRestClient.get()
+                .uri(openRouterProperties.getVideoPath() + "/{jobId}/content", jobId)
+                .retrieve()
+                .body(byte[].class);
+        if (data == null || data.length == 0) {
+            throw new RuntimeException("视频下载失败，jobId：" + jobId);
+        }
+        return data;
+    }
+
+    /**
      * 视频理解（多模态）
-     * 视频理解：OpenRouter /v1/chat/completions SpringAI多模态
+     * OpenRouter /v1/chat/completions
      */
     public String understandVideo(String message, String videoUrl, String model) {
-        log.info("视频理解，message：{}，videoUrl：{}", message, videoUrl);
+        log.info("视频理解，message：{}，videoUrl：{}，model：{}", message, videoUrl, model);
 
         Map<String, Object> videoContent = Map.of(
                 "type", "video_url",
@@ -199,6 +227,15 @@ public class OpenRouterClient {
                 .body(body)
                 .retrieve()
                 .body(MAP_TYPE);
-        return OpenRouterResponseUtils.extractContent(response);
+
+        String errorMessage = OpenRouterResponseUtils.extractError(response);
+        if (errorMessage != null) {
+            throw new RuntimeException("视频理解失败：" + errorMessage);
+        }
+        String content = OpenRouterResponseUtils.extractContent(response);
+        if (content == null) {
+            throw new RuntimeException("视频理解响应中未提取到内容，model=%s".formatted(model));
+        }
+        return content;
     }
 }
