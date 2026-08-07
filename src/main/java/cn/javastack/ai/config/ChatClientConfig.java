@@ -22,19 +22,19 @@ public class ChatClientConfig {
     /**
      * DeepSeek 聊天模型
      */
-    @Value("${spring.ai.deepseek.chat.options.model}")
+    @Value("${spring.ai.deepseek.chat.model}")
     private String deepSeekModel;
 
     /**
      * OpenAI 聊天模型
      */
-    @Value("${spring.ai.openai.chat.options.model}")
+    @Value("${spring.ai.openai.chat.model}")
     private String openAiModel;
 
     /**
      * Ollama 聊天模型
      */
-    @Value("${spring.ai.ollama.chat.options.model}")
+    @Value("${spring.ai.ollama.chat.model}")
     private String ollamaModel;
 
     /**

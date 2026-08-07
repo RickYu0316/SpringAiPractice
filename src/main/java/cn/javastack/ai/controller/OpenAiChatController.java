@@ -16,7 +16,6 @@ import reactor.core.publisher.Flux;
 
 import java.util.Collections;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * OpenAI 聊天Controller（通过OpenRouter网关访问OpenAI模型）
@@ -52,7 +51,12 @@ public class OpenAiChatController {
                         .metadata("userId", "100001"))
                 .stream()
                 .chatResponse()
-                .mapNotNull(r -> Objects.requireNonNull(r.getResult()).getOutput().getText())
+                .mapNotNull(r -> {
+                    if (r.getResult() == null) {
+                        return null;
+                    }
+                    return r.getResult().getOutput().getText();
+                })
                 .filter(StringUtils::hasLength)
                 .map(text -> Collections.singletonMap("context", text));
     }

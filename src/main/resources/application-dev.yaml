@@ -3,21 +3,20 @@ spring:
     chat:
       client:
         enabled: false
+    retry:
+      max-attempts: 3
     deepseek:
       api-key: ${DEEPSEEK_API_KEY}
       base-url: https://api.deepseek.com
       chat:
-        options:
-          model: ${DEEPSEEK_CHAT_MODEL:deepseek-v4-flash}
-          temperature: 0.6
+        model: ${DEEPSEEK_CHAT_MODEL:deepseek-v4-flash}
+        max-tokens: 8192
     openai:
       api-key: ${OPENROUTER_API_KEY}
       base-url: https://openrouter.ai/api/v1
       chat:
-        options:
-          model: ${OPENROUTER_CHAT_MODEL:xiaomi/mimo-v2.5}
-          max-completion-tokens: 100000
-          temperature: 0.8
+        model: ${OPENROUTER_CHAT_MODEL:xiaomi/mimo-v2.5}
+        max-completion-tokens: 8192
       audio:
         # 文本转语音
         speech:
@@ -31,9 +30,8 @@ spring:
     ollama:
       base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
       chat:
-        options:
-          model: ${OLLAMA_CHAT_MODEL:deepseek-r1:7b}
-          temperature: 0.6
+        model: ${OLLAMA_CHAT_MODEL:deepseek-r1:7b}
+        temperature: 0.7
     # OpenRouter
     open-router:
       base-url: ${OPENROUTER_BASE_URL:https://openrouter.ai/api}
