@@ -27,7 +27,7 @@ public class OllamaController {
     @GetMapping("/chat")
     public String chat(@Parameter(description = "输入问题") @RequestParam(value = "message") String message,
                        @Parameter(description = "口吻") @RequestParam(value = "voice", required = false, defaultValue = "聊天AI助手") String voice) {
-        log.info("调用Ollama本地聊天，message：{}", message);
+        log.info("调用Ollama本地聊天，message：{}，voice：{}", message, voice);
         return ollamaChatClient.prompt(message)
                 .system(sp -> sp.param("voice", voice))
                 .call()

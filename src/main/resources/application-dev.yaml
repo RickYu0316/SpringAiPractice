@@ -29,8 +29,12 @@ spring:
     # Ollama本地大模型
     ollama:
       base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+      init:
+        pull-model-strategy: never
       chat:
-        model: ${OLLAMA_CHAT_MODEL:deepseek-r1:7b}
+        model: ${OLLAMA_CHAT_MODEL:deepseek-r1:8b}
+        think: high
+        keep-alive: 5m
         temperature: 0.7
     # OpenRouter
     open-router:

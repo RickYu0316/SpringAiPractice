@@ -7,13 +7,13 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 
-/**
- * OpenRouter RestClient
- * 统一配置OpenRouter网关地址与公共请求头
- */
 @Configuration
 public class RestClientConfig {
 
+    /**
+     * OpenRouter RestClient
+     * 统一配置OpenRouter网关地址与公共请求头
+     */
     @Bean
     public RestClient openRouterRestClient(RestClient.Builder builder, OpenRouterProperties properties) {
         return builder.clone()

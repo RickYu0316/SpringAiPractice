@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Tag(name = "Deepseek 聊天接口", description = "Deepseek 聊天接口")
 @Slf4j
 @RestController
-@RequestMapping("/deepseek")
+@RequestMapping("/deepseekchat")
 public class DeepseekChatController {
 
     @Resource(name = "deepSeekChatClient")
