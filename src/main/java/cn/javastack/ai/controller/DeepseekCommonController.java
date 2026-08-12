@@ -1,10 +1,12 @@
 package cn.javastack.ai.controller;
 
+import cn.javastack.ai.advisors.DefaultLoggerAdvisor;
 import cn.javastack.ai.dto.custom.CustomChatRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -25,6 +27,7 @@ import java.util.Map;
 @Slf4j
 @RestController
 @RequestMapping("/deepseek")
+@RequiredArgsConstructor
 public class DeepseekCommonController {
 
     @Resource(name = "deepSeekChatClient")
@@ -32,6 +35,8 @@ public class DeepseekCommonController {
 
     @Value("classpath:/prompts/algorithm-system-prompt.st")
     private org.springframework.core.io.Resource algorithmSystemResource;
+
+    private final DefaultLoggerAdvisor defaultLoggerAdvisor;
 
     /**
      * 从文件加载系统提示词
@@ -56,12 +61,13 @@ public class DeepseekCommonController {
     }
 
     /**
-     * 传入实时模型参数
+     * 传入实时模型请求参数
+     * 默认日志记录
      */
-    @Operation(summary = "传入模型参数聊天")
-    @GetMapping("/optionsChat")
-    public String optionsChat(CustomChatRequest request) {
-        log.info("调用optionsChat 传入模型参数聊天，模型参数：{}", request.toString());
+    @Operation(summary = "聊天")
+    @GetMapping("/commonChat")
+    public String commonChat(CustomChatRequest request) {
+        log.info("调用commonChat，请求参数：{}", request.toString());
         // 切换模型参数
         DeepSeekChatOptions chatOptions = buildDeepSeekChatOptions(request);
         // 构建提示词
@@ -69,6 +75,7 @@ public class DeepseekCommonController {
 
         return deepSeekChatClient.prompt(prompt)
                 .system(sp -> sp.param("voice", request.getVoice()))
+                .advisors(defaultLoggerAdvisor)
                 .call()
                 .content();
     }

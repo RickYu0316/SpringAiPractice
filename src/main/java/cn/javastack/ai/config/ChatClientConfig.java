@@ -82,19 +82,12 @@ public class ChatClientConfig {
     }
 
     /**
-     * 统一构建带默认System/User上下文的 ChatClient
+     * 统一构建带默认System上下文的 ChatClient
      */
     private ChatClient buildChatClient(ChatModel chatModel, String systemText, String modelName) {
         return ChatClient.builder(chatModel)
                 .defaultSystem(s -> s.text(systemText)
-                        .metadata("assistantType", "chat")
-                        .metadata("model", modelName)
-                        .metadata("version", "1.0"))
-                .defaultUser(u -> u.text("Default user context")
-                        .metadata("userId", "default-user")
-                        .metadata("sessionId", "default-session")
-                        .metadata("messageId", "default-message")
-                        .metadata("priority", "high"))
+                        .metadata("model", modelName))
                 .build();
     }
 
