@@ -1,7 +1,13 @@
 package cn.javastack.ai.config;
 
+import cn.javastack.ai.advisors.DefaultLoggerAdvisor;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.Resource;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.memory.MessageWindowChatMemory;
+import org.springframework.ai.chat.memory.repository.jdbc.JdbcChatMemoryRepository;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.deepseek.DeepSeekChatModel;
 import org.springframework.ai.ollama.OllamaChatModel;
@@ -36,6 +42,11 @@ public class ChatClientConfig {
      */
     @Value("${spring.ai.ollama.chat.model}")
     private String ollamaModel;
+
+    @Resource
+    private DefaultLoggerAdvisor defaultLoggerAdvisor;
+
+    private static final int maxMessages = 50;
 
     /**
      * bean未正确加载，手动加载
@@ -91,4 +102,25 @@ public class ChatClientConfig {
                 .build();
     }
 
+    /**
+     * JDBC构建聊天记忆，DeepSeekChatClient
+     * 默认日志记录
+     */
+    @Bean
+    public ChatClient jdbcMemoryChatClient(DeepSeekChatModel deepSeekChatModel, JdbcChatMemoryRepository jdbcChatMemoryRepository) {
+        // 构建jdbcChatMemory
+        ChatMemory jdbcChatMemory = MessageWindowChatMemory.builder()
+                .maxMessages(maxMessages)
+                .chatMemoryRepository(jdbcChatMemoryRepository)
+                .build();
+
+        // 构建chatMemoryAdvisor
+        MessageChatMemoryAdvisor chatMemoryAdvisor = MessageChatMemoryAdvisor.builder(jdbcChatMemory).build();
+
+        return ChatClient.builder(deepSeekChatModel)
+                .defaultSystem(s -> s.text("DeepSeek 具有聊天记忆的AI助手，以 {voice} 的口吻回答问题")
+                        .metadata("model", deepSeekModel))
+                .defaultAdvisors(defaultLoggerAdvisor, chatMemoryAdvisor)
+                .build();
+    }
 }

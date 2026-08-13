@@ -3,6 +3,11 @@ spring:
     chat:
       client:
         enabled: false
+      memory:
+        repository:
+          jdbc:
+            platform: mysql
+            initialize-schema: always
     retry:
       max-attempts: 3
     deepseek:
@@ -48,3 +53,41 @@ spring:
       video-model: ${OPENROUTER_VIDEO_MODEL:bytedance/seedance-2.0}
       image-path: /v1/images
       video-path: /v1/videos
+  # MySql，生产环境开启useSSL=true
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://127.0.0.1:3306/sap_db?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true
+    username: sap
+    password: ${MYSQL_PASSWORD:sap123}
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      idle-timeout: 30000
+      max-lifetime: 1800000
+      validation-timeout: 5000
+      connection-timeout: 30000
+      keepalive-time: 30000
+      auto-commit: true
+      connection-init-sql: SELECT 1
+      pool-name: SapHikariPool
+
+# MybatisPlus
+mybatis-plus:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: cn.javastack.ai.domain
+  type-enums-package: cn.javastack.ai.domain.enums
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+    cache-enabled: false
+    call-setters-on-nulls: true
+    jdbc-type-for-null: 'null'
+  global-config:
+    banner: false
+    db-config:
+      id-type: assign_id  #雪花ID
+
+# 日志级别配置
+logging:
+  level:
+    cn.javastack.ai.mapper: debug

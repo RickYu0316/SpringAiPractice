@@ -1,6 +1,5 @@
 package cn.javastack.ai.controller;
 
-import cn.javastack.ai.advisors.DefaultLoggerAdvisor;
 import cn.javastack.ai.dto.custom.CustomChatRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -9,15 +8,20 @@ import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.memory.repository.jdbc.JdbcChatMemoryRepository;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.SystemPromptTemplate;
 import org.springframework.ai.deepseek.DeepSeekChatOptions;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.util.Assert;
+import org.springframework.util.StringUtils;
+import org.springframework.web.bind.annotation.*;
 
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -33,10 +37,13 @@ public class DeepseekCommonController {
     @Resource(name = "deepSeekChatClient")
     private ChatClient deepSeekChatClient;
 
+    @Resource(name = "jdbcMemoryChatClient")
+    private ChatClient jdbcMemoryChatClient;
+
+    private final JdbcChatMemoryRepository jdbcMemoryRepository;
+
     @Value("classpath:/prompts/algorithm-system-prompt.st")
     private org.springframework.core.io.Resource algorithmSystemResource;
-
-    private final DefaultLoggerAdvisor defaultLoggerAdvisor;
 
     /**
      * 从文件加载系统提示词
@@ -61,6 +68,7 @@ public class DeepseekCommonController {
     }
 
     /**
+     * JDBC聊天记忆，默认LLM：DeepSeek
      * 传入实时模型请求参数
      * 默认日志记录
      */
@@ -68,16 +76,76 @@ public class DeepseekCommonController {
     @GetMapping("/commonChat")
     public String commonChat(CustomChatRequest request) {
         log.info("调用commonChat，请求参数：{}", request.toString());
+        Assert.hasText(request.getConversationId(), "conversationId 不能为空");
+
         // 切换模型参数
         DeepSeekChatOptions chatOptions = buildDeepSeekChatOptions(request);
         // 构建提示词
         Prompt prompt = new Prompt(request.getMessage(), chatOptions);
 
-        return deepSeekChatClient.prompt(prompt)
+        return jdbcMemoryChatClient.prompt(prompt)
                 .system(sp -> sp.param("voice", request.getVoice()))
-                .advisors(defaultLoggerAdvisor)
+                .advisors(ap -> ap.param(ChatMemory.CONVERSATION_ID, request.getConversationId()))
                 .call()
                 .content();
+    }
+
+    /**
+     * 会话列表
+     */
+    @Operation(summary = "会话列表")
+    @GetMapping("/conversations")
+    public List<ConversationVO> conversations() {
+        return jdbcMemoryRepository.findConversationIds()
+                .stream()
+                .sorted(Comparator.reverseOrder())
+                .map(id -> new ConversationVO(id, title(jdbcMemoryRepository.findByConversationId(id))))
+                .toList();
+    }
+
+    /**
+     * 单个会话历史消息
+     */
+    @Operation(summary = "单个会话历史消息")
+    @GetMapping("/messages")
+    public List<MessageVO> messages(@Parameter(description = "会话ID") @RequestParam String conversationId) {
+        return jdbcMemoryRepository.findByConversationId(conversationId)
+                .stream()
+                .map(m -> new MessageVO(m.getMessageType().getValue(), m.getText()))
+                .toList();
+    }
+
+    /**
+     * 删除会话
+     */
+    @Operation(summary = "删除会话")
+    @DeleteMapping("/deleteConversation")
+    public void deleteConversation(@Parameter(description = "会话ID") @RequestParam String conversationId) {
+        jdbcMemoryRepository.deleteByConversationId(conversationId);
+    }
+
+    /**
+     * 生成会话标题
+     */
+    private String title(List<Message> messages) {
+        return messages.stream()
+                .filter(m -> m.getMessageType() == MessageType.USER)
+                .map(Message::getText)
+                .filter(StringUtils::hasText)
+                .findFirst()
+                .orElse("新会话");
+    }
+
+    /**
+     * 会话视图对象
+     */
+    public record ConversationVO(String id, String title) {
+    }
+
+    /**
+     * 消息视图对象
+     */
+    public record MessageVO(String role, String content) {
     }
 
     /**

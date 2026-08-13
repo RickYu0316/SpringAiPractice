@@ -9,6 +9,11 @@ import lombok.Data;
 public class CustomChatRequest {
 
     /**
+     * 会话 ID
+     */
+    private String conversationId;
+
+    /**
      * 消息内容
      */
     private String message;
