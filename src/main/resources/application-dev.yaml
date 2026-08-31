@@ -22,15 +22,23 @@ spring:
       chat:
         model: ${OPENROUTER_CHAT_MODEL:xiaomi/mimo-v2.5}
         max-completion-tokens: 8192
+      image:
+        model: ${OPENROUTER_IMAGE_MODEL:bytedance-seed/seedream-4.5}
+        n: 1
+        size: 2048x2048
       audio:
         # 文本转语音
         speech:
           model: ${OPENROUTER_TTS_MODEL:x-ai/grok-voice-tts-1.0}
           voice: eve
+          speed: 1.0
           response-format: mp3
         # 语音转文字
         transcription:
-          model: ${OPENROUTER_STT_MODEL:x-ai/grok-voice-tts-1.0}
+          model: ${OPENROUTER_STT_MODEL:deepgram/nova-3}
+          language: zh
+          temperature: 0.2
+          response-format: verbose_json
     # Ollama本地大模型
     ollama:
       base-url: ${OLLAMA_BASE_URL:http://localhost:11434}

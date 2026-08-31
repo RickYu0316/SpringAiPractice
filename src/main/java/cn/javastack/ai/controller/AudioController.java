@@ -1,28 +1,39 @@
 package cn.javastack.ai.controller;
 
+import cn.hutool.core.util.StrUtil;
 import cn.javastack.ai.common.GeneratedMediaCache;
+import cn.javastack.ai.dto.custom.AudioTTSRequest;
+import cn.javastack.ai.dto.custom.AudioTranscriptionRequest;
 import cn.javastack.ai.utils.MediaTypeUtils;
+import com.openai.models.audio.AudioResponseFormat;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.audio.transcription.TranscriptionModel;
+import org.springframework.ai.audio.transcription.AudioTranscriptionOptions;
+import org.springframework.ai.audio.transcription.AudioTranscriptionPrompt;
+import org.springframework.ai.audio.transcription.AudioTranscriptionResponse;
 import org.springframework.ai.audio.tts.TextToSpeechModel;
+import org.springframework.ai.audio.tts.TextToSpeechOptions;
 import org.springframework.ai.audio.tts.TextToSpeechPrompt;
 import org.springframework.ai.audio.tts.TextToSpeechResponse;
+import org.springframework.ai.openai.OpenAiAudioSpeechModel;
 import org.springframework.ai.openai.OpenAiAudioSpeechOptions;
-import org.springframework.core.io.ByteArrayResource;
+import org.springframework.ai.openai.OpenAiAudioTranscriptionModel;
+import org.springframework.ai.openai.OpenAiAudioTranscriptionOptions;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.util.List;
@@ -36,6 +47,7 @@ import java.util.Map;
 @Slf4j
 @RestController
 @RequestMapping("/audio")
+@RequiredArgsConstructor
 public class AudioController {
 
     private static final String AUDIO_MEDIA_TYPE = "audio/mpeg";
@@ -43,8 +55,21 @@ public class AudioController {
     @Resource(name = "openAiSdkAudioSpeechModel")
     private TextToSpeechModel audioSpeechModel;
 
-    @Resource(name = "openAiSdkAudioTranscriptionModel")
-    private TranscriptionModel audioTranscriptionModel;
+    private final OpenAiAudioSpeechModel openAiAudioSpeechModel;
+
+    private final OpenAiAudioTranscriptionModel openAiAudioTranscriptionModel;
+
+    @Value("${spring.ai.openai.audio.speech.model}")
+    private String openAiDefaultSpeechModel;
+
+    @Value("${spring.ai.openai.audio.transcription.model}")
+    private String openAiDefaultTranscriptionModel;
+
+    @Value("${spring.ai.openai.audio.transcription.language}")
+    private String openAiDefaultTranscriptionLanguage;
+
+    @Value("${spring.ai.openai.audio.transcription.temperature}")
+    private Float openAiDefaultTranscriptionTemperature;
 
     @Resource
     private GeneratedMediaCache generatedMediaCache;
@@ -91,24 +116,75 @@ public class AudioController {
                 .body(media.data());
     }
 
-    // OpenRouter中暂无可用STT模型，暂不使用
-    @Operation(summary = "语音转文字 STT")
-    @PostMapping(value = "/transcribe", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public String transcribe(
-            @Parameter(description = "音频文件（mp3/wav/flac等）") @RequestParam("file") MultipartFile file) {
-        log.info("调用STT，文件名：{}，大小：{} bytes", file.getOriginalFilename(), file.getSize());
+    @Operation(summary = "OpenAi 文本转语音 TTS")
+    @GetMapping("/tts")
+    public Map<String, Object> tts(AudioTTSRequest audioTTSRequest) {
+        log.info("调用 OpenAi 文本转语音 TTS，参数：{}", audioTTSRequest);
 
-        try {
-            org.springframework.core.io.Resource audioResource = new ByteArrayResource(file.getBytes()) {
-                @Override
-                public String getFilename() {
-                    return file.getOriginalFilename();
-                }
-            };
-            return audioTranscriptionModel.transcribe(audioResource);
-        } catch (Exception e) {
-            log.error("调用STT接口失败：{}", e.getMessage(), e);
-            throw new RuntimeException("语音识别失败：" + e.getMessage(), e);
+        String model = StrUtil.isBlank(audioTTSRequest.getModel()) ? openAiDefaultSpeechModel : audioTTSRequest.getModel();
+        TextToSpeechOptions textToSpeechOptions = buildSpeechOptions(audioTTSRequest, model);
+        TextToSpeechPrompt prompt = new TextToSpeechPrompt(audioTTSRequest.getMessage(), textToSpeechOptions);
+        TextToSpeechResponse response = openAiAudioSpeechModel.call(prompt);
+        byte[] audioBytes = response.getResult().getOutput();
+
+        String base = ServletUriComponentsBuilder.fromCurrentContextPath().toUriString();
+        String id = generatedMediaCache.store(audioBytes, AUDIO_MEDIA_TYPE);
+        return Map.of(
+                "mediaType", AUDIO_MEDIA_TYPE,
+                "urls", List.of(base + "/audio/download/" + id));
+    }
+
+    @Operation(summary = "OpenAi 语音转文字 STT")
+    @GetMapping("/transcription")
+    public String transcription(AudioTranscriptionRequest request) {
+        log.info("调用 OpenAi 语音转文字 STT，参数：{}", request);
+
+        String model = StrUtil.isBlank(request.getModel()) ? openAiDefaultTranscriptionModel : request.getModel();
+        String language = StrUtil.isBlank(request.getLanguage()) ? openAiDefaultTranscriptionLanguage : request.getLanguage();
+        // deepgram/nova-3 temperature 仅支持 0~1
+        Float rawTemperature = request.getTemperature() == null ? openAiDefaultTranscriptionTemperature : request.getTemperature();
+        Float temperature = Math.clamp(rawTemperature, 0f, 1f);
+        // deepgram/nova-3 responseFormat 仅支持 verbose_json
+        AudioTranscriptionOptions audioTranscriptionOptions = OpenAiAudioTranscriptionOptions.builder()
+                .model(model)
+                .language(language)
+                .temperature(temperature)
+                .responseFormat(AudioResponseFormat.VERBOSE_JSON)
+                .build();
+
+        org.springframework.core.io.Resource audioFile;
+        if (StrUtil.isNotBlank(request.getAudioFilePath())) {
+            // 获取本地语音文件
+            audioFile = new FileSystemResource(request.getAudioFilePath());
+        } else {
+            log.info("本地语音文件地址为空，使用默认 ClasPath 路径下的语音文件");
+            // 获取默认 ClasPath 路径下的语音文件
+            audioFile = new ClassPathResource("/static/audios/tts-openai.mp3");
         }
+
+        AudioTranscriptionPrompt prompt = new AudioTranscriptionPrompt(audioFile, audioTranscriptionOptions);
+        AudioTranscriptionResponse response = openAiAudioTranscriptionModel.call(prompt);
+        return response.getResult().getOutput();
+    }
+
+    /**
+     * 构建 OpenAi Speech参数
+     */
+    private static TextToSpeechOptions buildSpeechOptions(AudioTTSRequest request, String model) {
+        TextToSpeechOptions.Builder builder = TextToSpeechOptions.builder();
+
+        if (StrUtil.isNotBlank(model)) {
+            builder.model(model);
+        }
+        if (StrUtil.isNotBlank(request.getVoice())) {
+            builder.voice(request.getVoice());
+        }
+        if (request.getSpeed() != null) {
+            builder.speed(request.getSpeed());
+        }
+        if (StrUtil.isNotBlank(request.getResponseFormat())) {
+            builder.format(request.getResponseFormat());
+        }
+        return builder.build();
     }
 }

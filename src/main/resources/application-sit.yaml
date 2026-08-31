@@ -3,37 +3,52 @@ spring:
     chat:
       client:
         enabled: false
+      memory:
+        repository:
+          jdbc:
+            platform: mysql
+            initialize-schema: always
+    retry:
+      max-attempts: 3
     deepseek:
       api-key: ${DEEPSEEK_API_KEY}
       base-url: https://api.deepseek.com
       chat:
-        options:
-          model: ${DEEPSEEK_CHAT_MODEL:deepseek-v4-flash}
-          temperature: 0.6
+        model: ${DEEPSEEK_CHAT_MODEL:deepseek-v4-flash}
+        max-tokens: 8192
     openai:
       api-key: ${OPENROUTER_API_KEY}
       base-url: https://openrouter.ai/api/v1
       chat:
-        options:
-          model: ${OPENROUTER_CHAT_MODEL:xiaomi/mimo-v2.5}
-          max-completion-tokens: 100000
-          temperature: 0.8
+        model: ${OPENROUTER_CHAT_MODEL:xiaomi/mimo-v2.5}
+        max-completion-tokens: 8192
+      image:
+        model: ${OPENROUTER_IMAGE_MODEL:bytedance-seed/seedream-4.5}
+        n: 1
+        size: 2048x2048
       audio:
         # 文本转语音
         speech:
           model: ${OPENROUTER_TTS_MODEL:x-ai/grok-voice-tts-1.0}
           voice: eve
+          speed: 1.0
           response-format: mp3
         # 语音转文字
         transcription:
-          model: ${OPENROUTER_STT_MODEL:x-ai/grok-voice-tts-1.0}
+          model: ${OPENROUTER_STT_MODEL:deepgram/nova-3}
+          language: zh
+          temperature: 0.2
+          response-format: verbose_json
     # Ollama本地大模型
     ollama:
       base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+      init:
+        pull-model-strategy: never
       chat:
-        options:
-          model: ${OLLAMA_CHAT_MODEL:deepseek-r1:7b}
-          temperature: 0.6
+        model: ${OLLAMA_CHAT_MODEL:deepseek-r1:8b}
+        think: high
+        keep-alive: 5m
+        temperature: 0.7
     # OpenRouter
     open-router:
       base-url: ${OPENROUTER_BASE_URL:https://openrouter.ai/api}
@@ -46,3 +61,41 @@ spring:
       video-model: ${OPENROUTER_VIDEO_MODEL:bytedance/seedance-2.0}
       image-path: /v1/images
       video-path: /v1/videos
+  # MySql，生产环境开启useSSL=true
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://127.0.0.1:3306/sap_db?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true
+    username: sap
+    password: ${MYSQL_PASSWORD:sap123}
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      idle-timeout: 30000
+      max-lifetime: 1800000
+      validation-timeout: 5000
+      connection-timeout: 30000
+      keepalive-time: 30000
+      auto-commit: true
+      connection-init-sql: SELECT 1
+      pool-name: SapHikariPool
+
+# MybatisPlus
+mybatis-plus:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: cn.javastack.ai.domain
+  type-enums-package: cn.javastack.ai.domain.enums
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+    cache-enabled: false
+    call-setters-on-nulls: true
+    jdbc-type-for-null: 'null'
+  global-config:
+    banner: false
+    db-config:
+      id-type: assign_id  #雪花ID
+
+# 日志级别配置
+logging:
+  level:
+    cn.javastack.ai.mapper: debug

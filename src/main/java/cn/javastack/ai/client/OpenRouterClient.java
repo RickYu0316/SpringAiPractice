@@ -96,13 +96,12 @@ public class OpenRouterClient {
     }
 
     /**
-     * 图像生成
-     * OpenRouter的图片端点是 /v1/images，SpringAI OpenAI SDK的图片端点是 /images/generations，
-     * 不匹配，因此不使用SpringAI的OpenAiImageModel，改为RestClient直连 OpenRouter
+     * 图像生成，使用 RestClient 直连 OpenRouter
+     * OpenRouter的图片端点是 /v1/images，SpringAI OpenAI SDK的图片端点是 /images/generations
      */
     @SuppressWarnings("unchecked")
     public Map<String, Object> generateImage(String prompt, String model, String size) {
-        log.info("调用图像生成，prompt：{}，model：{}，size：{}", prompt, model, size);
+        log.info("调用 OpenRouter 图像生成，prompt：{}，model：{}，size：{}", prompt, model, size);
 
         Map<String, Object> body = new HashMap<>();
         body.put("model", StringUtils.hasLength(model) ? model : openRouterProperties.getImageModel());
