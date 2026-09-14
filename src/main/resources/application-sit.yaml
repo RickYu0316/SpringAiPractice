@@ -78,24 +78,3 @@ spring:
       auto-commit: true
       connection-init-sql: SELECT 1
       pool-name: SapHikariPool
-
-# MybatisPlus
-mybatis-plus:
-  mapper-locations: classpath:mapper/*.xml
-  type-aliases-package: cn.javastack.ai.domain
-  type-enums-package: cn.javastack.ai.domain.enums
-  configuration:
-    map-underscore-to-camel-case: true
-    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
-    cache-enabled: false
-    call-setters-on-nulls: true
-    jdbc-type-for-null: 'null'
-  global-config:
-    banner: false
-    db-config:
-      id-type: assign_id  #雪花ID
-
-# 日志级别配置
-logging:
-  level:
-    cn.javastack.ai.mapper: debug

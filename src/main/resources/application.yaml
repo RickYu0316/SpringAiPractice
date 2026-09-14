@@ -12,6 +12,28 @@ spring:
 server:
   port: 8080
 
+# MybatisPlus
+mybatis-plus:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: cn.javastack.ai.domain
+  type-enums-package: cn.javastack.ai.domain.enums
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+    cache-enabled: false
+    call-setters-on-nulls: true
+    jdbc-type-for-null: 'null'
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto  #自增
+
+# 日志级别配置
+logging:
+  level:
+    org.springframework.ai: debug
+    cn.javastack.ai.mapper: debug
+
 # springdoc配置
 springdoc:
   packages-to-scan: cn.javastack.ai.controller,cn.javastack.ai.handler

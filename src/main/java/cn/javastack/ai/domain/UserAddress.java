@@ -1,4 +1,6 @@
 package cn.javastack.ai.domain;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -18,8 +20,9 @@ public class UserAddress implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    @Schema(description = "地址ID", requiredMode = Schema.RequiredMode.REQUIRED)
-    private Long id;                      // 地址ID
+    @TableId(type = IdType.AUTO)
+    @Schema(description = "用户地址ID", requiredMode = Schema.RequiredMode.REQUIRED)
+    private Long id;                      // 用户地址ID
     @Schema(description = "用户ID")
     private Long userId;                  // 用户ID
     private String receiverName;          // 收货人姓名
