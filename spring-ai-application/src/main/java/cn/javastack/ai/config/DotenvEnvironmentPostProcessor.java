@@ -24,7 +24,11 @@ public class DotenvEnvironmentPostProcessor implements EnvironmentPostProcessor 
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
+        // 多模块工程：优先读取当前工作目录下的 .env，找不到时回退到父目录（仓库根目录）查找
         Path dotenvPath = Path.of(".env");
+        if (!Files.exists(dotenvPath)) {
+            dotenvPath = Path.of("..", ".env");
+        }
         if (!Files.exists(dotenvPath)) {
             log.debug(".env file not found, skipping");
             return;

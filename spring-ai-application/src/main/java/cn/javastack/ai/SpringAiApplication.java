@@ -6,9 +6,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
 @MapperScan("cn.javastack.ai.mapper")
-public class SpringAiPracticeApplication {
+public class SpringAiApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(SpringAiPracticeApplication.class, args);
+        SpringApplication.run(SpringAiApplication.class, args);
     }
 }

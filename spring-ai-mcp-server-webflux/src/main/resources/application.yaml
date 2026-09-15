@@ -1,0 +1,31 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: spring-ai-mcp-server-webflux
+  ai:
+    mcp:
+      server:
+        enabled: true
+        name: mcp-server-webflux
+        version: 2.0.1
+        type: SYNC
+        protocol: STREAMABLE
+        resource-change-notification: true
+        tool-change-notification: true
+        prompt-change-notification: true
+        streamable-http:
+          mcp-endpoint: /mcp
+          keep-alive-interval: 60s
+        capabilities:
+          tool: true
+          resource: true
+          prompt: true
+          completion: true
+
+logging:
+  level:
+    org.springframework.ai: debug
+  file:
+    name: logs/mcp-server-webflux.log
