@@ -1,6 +1,7 @@
 package cn.javastack.ai.domain;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableLogic;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -40,6 +41,7 @@ public class UserAddress implements Serializable {
     private LocalDateTime createTime = LocalDateTime.now(); // 创建时间
     private LocalDateTime updateTime;              // 更新时间
     @Builder.Default
+    @TableLogic
     private Integer isDeleted = 0;        // 逻辑删除标志 (0-未删除, 1-已删除)
 
     /**

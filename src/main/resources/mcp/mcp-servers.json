@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "bing-search": {
+      "command": "cmd.exe",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "bing-cn-mcp"
+      ]
+    },
+    "mysql": {
+      "command": "cmd.exe",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@f4ww4z/mcp-mysql-server"
+      ]
+    }
+  }
+}
