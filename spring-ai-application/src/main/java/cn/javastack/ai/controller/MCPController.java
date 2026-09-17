@@ -1,5 +1,6 @@
 package cn.javastack.ai.controller;
 
+import cn.javastack.ai.dto.custom.PexelsSearchRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -10,10 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "AI MCP Controller", description = "AI MCP Controller")
 @Slf4j
@@ -29,6 +27,15 @@ public class MCPController {
 
     @Resource(name = "mysqlChatClient")
     private ChatClient mysqlChatClient;
+
+    @Resource(name = "httpContextChatClient")
+    private ChatClient httpContextChatClient;
+
+    @Resource(name = "pexelsChatClient")
+    private ChatClient pexelsChatClient;
+
+    @Resource(name = "paymentAnalysisChatClient")
+    private ChatClient paymentAnalysisChatClient;
 
     @PostConstruct
     public void init() {
@@ -51,6 +58,33 @@ public class MCPController {
     @GetMapping("/mysqlDataProcess")
     public String mysqlDataProcess(@Parameter(description = "数据库操作") @RequestParam(value = "message") String message) {
         return mysqlChatClient.prompt(message)
+                .call()
+                .content();
+    }
+
+    @Operation(summary = "Http上下文信息回显")
+    @GetMapping("/inspectHttpContext")
+    public String inspectHttpContext(@Parameter(description = "问题") @RequestParam(value = "message") String message) {
+        return httpContextChatClient.prompt(message)
+                .call()
+                .content();
+    }
+
+    @Operation(summary = "Pexels图片搜索")
+    @PostMapping("/imageSearch")
+    public String imageSearch(PexelsSearchRequest request) {
+        StringBuilder builder = new StringBuilder();
+        request.toQueryParams().forEach((key, value) ->
+                builder.append("\n- ").append(key).append(": ").append(value));
+        return pexelsChatClient.prompt(builder.toString())
+                .call()
+                .content();
+    }
+
+    @Operation(summary = "支付失败原因智能分析")
+    @GetMapping("/paymentAnalysis")
+    public String paymentAnalysis(@Parameter(description = "问题") @RequestParam(value = "message") String message) {
+        return paymentAnalysisChatClient.prompt(message)
                 .call()
                 .content();
     }

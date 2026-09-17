@@ -1,5 +1,6 @@
 package cn.javastack.ai.config;
 
+import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.EnvironmentPostProcessor;
@@ -23,7 +24,7 @@ public class DotenvEnvironmentPostProcessor implements EnvironmentPostProcessor 
     private static final Logger log = LoggerFactory.getLogger(DotenvEnvironmentPostProcessor.class);
 
     @Override
-    public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
+    public void postProcessEnvironment(@NonNull ConfigurableEnvironment environment, @NonNull SpringApplication application) {
         // 多模块工程：优先读取当前工作目录下的 .env，找不到时回退到父目录（仓库根目录）查找
         Path dotenvPath = Path.of(".env");
         if (!Files.exists(dotenvPath)) {

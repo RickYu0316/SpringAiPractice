@@ -16,13 +16,20 @@ spring:
             initialize-schema: always
     mcp:
       client:
-        type: sync
+        enabled: true
+        type: SYNC
+        request-timeout: 30s
+        toolcallback:
+          enabled: true
         annotation-scanner:
           enabled: false
         stdio:
           servers-configuration: classpath:/mcp/mcp-servers.json
-        toolcallback:
-          enabled: true
+        streamable-http:
+          connections:
+            server1:
+              url: http://localhost:8081
+              endpoint: /mcp
     retry:
       max-attempts: 3
     deepseek:

@@ -180,6 +180,64 @@ public class ChatClientConfig {
     }
 
     /**
+     * Http上下文信息回显 MCP ChatClient
+     */
+    @Bean
+    public ChatClient httpContextChatClient(List<McpSyncClient> mcpSyncClients,
+                                            ChatClient.Builder chatClientBuilder) {
+        String systemPrompt = "你是一位得力的 HTTP 上下文助手，你需要调用 inspect_http_context MCP工具获取 HTTP 上下文信息，从而回答问题。不要从其他地方获取信息。";
+        return buildMCPChatClient(mcpSyncClients, chatClientBuilder, systemPrompt);
+    }
+
+    /**
+     * Pexels图片搜索 MCP ChatClient
+     */
+    @Bean
+    public ChatClient pexelsChatClient(List<McpSyncClient> mcpSyncClients,
+                                       ChatClient.Builder chatClientBuilder) {
+        String systemPrompt = "你是一位得力的图片搜索助手，能够使用 image_search MCP工具搜索图片，从而回答问题。";
+        return buildMCPChatClient(mcpSyncClients, chatClientBuilder, systemPrompt);
+    }
+
+    /**
+     * 支付失败原因智能分析 MCP ChatClient
+     */
+    @Bean
+    public ChatClient paymentAnalysisChatClient(List<McpSyncClient> mcpSyncClients,
+                                                ChatClient.Builder chatClientBuilder) {
+        String systemPrompt = """
+                 你是一位专业的支付系统异常分析助手，当用户询问支付异常原因时：
+                 - 你必须通过 MCP 工具获取事实
+                 - 只能基于 MCP 工具返回的数据进行判断
+                 - 禁止基于常识或猜测回答
+                
+                 工具说明：
+                 - PaymentOrderTools：查询支付订单事实
+                 - PaymentChannelTools：查询支付渠道状态
+                 - MerchantConfigTools：查询商户支付配置状态
+                 - RiskRuleTools：查询是否命中风控规则
+                 - PaymentSuggestionTools：在完成分析后生成支付异常处理建议
+                
+                 分析流程建议（非强制）：
+                 1. 先确认支付订单状态
+                 2. 再判断渠道、商户、风控因素
+                 3. 最后再生成处理建议
+                """;
+
+        String mysqlPrompt = String.format("""
+                        可以通过 MCP MySQL Server 操作数据库。
+                        连接信息：host=%s, user=%s, password=%s, database=%s。
+                        请严格按以下步骤执行：
+                        1. 第一步必须先调用 connect_db 工具建立连接，参数依次传入上述 host、user、password、database；
+                        2. 连接成功后，如需了解表结构，先调用 list_tables 查看所有表，再调用 describe_table 查看目标表结构；
+                        3. 查询(SELECT)用 query 工具，插入/更新/删除用 execute 工具；
+                        4. 每次回答都要基于工具返回的真实数据，不要凭空编造。
+                        """,
+                mysqlHost, mysqlUser, mysqlPassword, mysqlDatabase);
+        return buildMCPChatClient(mcpSyncClients, chatClientBuilder, systemPrompt + mysqlPrompt);
+    }
+
+    /**
      * 构建 MCP ChatClient
      */
     private ChatClient buildMCPChatClient(List<McpSyncClient> mcpSyncClients,
