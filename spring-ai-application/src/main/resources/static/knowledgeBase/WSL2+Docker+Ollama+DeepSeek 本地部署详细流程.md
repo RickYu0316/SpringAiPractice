@@ -25,8 +25,12 @@
 - Ollama 0.32.5 容器 + `deepseek-r1:7b` 模型（4.7GB）
 - **Open WebUI** 图形界面已部署（`http://localhost:3000`，浏览器网页对话）
 - **Portainer** 容器管理界面已部署（`https://localhost:9443`，可视化管理容器/镜像/卷）
+- **Milvus 2.6.22** 向量数据库已部署（`localhost:19530` gRPC / `localhost:9091` WebUI），供 Spring AI RAG 检索
+- **MySQL 8.0** 已部署（`localhost:3306`，库 `sap_db`，Spring 项目使用）
+- **Attu**（Milvus 图形管理界面）已部署（`http://localhost:8000`）
 - 由于 WSL 内缺 `/dev/kfd`，**ROCm GPU 加速不可用，走 CPU 推理**，实测约 11.6 token/s
-- WSL 空闲不再自动关机（`.wslconfig` 双 idle timeout）；打开任意 WSL 终端即拉起 Docker → 三容器自动恢复（手动启动方案，无开机自启）
+- 全部 6 个容器统一 `--restart unless-stopped`；其中 ollama/open-webui/mysql8/milvus 带**健康检查**（`docker ps` 显示 `(healthy)`），portainer 官方镜像无 HealthCheck、`Up` 即属正常
+- WSL 空闲不再自动关机（`.wslconfig` 双 idle timeout）；打开任意 WSL 终端即拉起 Docker → 六容器自动恢复（手动启动方案，无开机自启）
 
 ### 国内网络要点速览
 
@@ -325,9 +329,12 @@ docker pull ollama/ollama    # 约 8GB，走镜像加速；中断重跑可续传
 ```bash
 docker run -d --name ollama --restart unless-stopped \
   --device /dev/dxg \
+  -e OLLAMA_HOST=0.0.0.0:11434 \
   -e HSA_OVERRIDE_GFX_VERSION=11.0.2 \
   -v ollama:/root/.ollama \
   -p 11434:11434 \
+  --health-cmd 'OLLAMA_HOST=127.0.0.1:11434 ollama list >/dev/null 2>&1' \
+  --health-interval 30s --health-timeout 10s --health-start-period 30s --health-retries 3 \
   ollama/ollama
 ```
 
@@ -337,7 +344,9 @@ docker run -d --name ollama --restart unless-stopped \
 - `-e HSA_OVERRIDE_GFX_VERSION=11.0.2`：给 AMD RDNA3（RX 7600M XT）强制指定 ROCm 架构。
 - `-v ollama:/root/.ollama`：**模型数据持久化卷，必须保留**，删容器不丢模型。
 - `--restart unless-stopped`：Docker 重启时容器自动拉起，配合 systemd 实现开机自愈。
+- `-e OLLAMA_HOST=0.0.0.0:11434`：显式监听 `0.0.0.0`（新版 Ollama 默认绑 `127.0.0.1`，会拒绝跨容器/外部访问）。
 - `-p 11434:11434`：暴露 Ollama API 端口供 Windows 侧访问。
+- `--health-cmd 'OLLAMA_HOST=127.0.0.1:11434 ollama list ...'`：镜像无 curl/wget，用自带 `ollama list`（能连上本地服务即返回 0）做健康检查；`docker ps` 显示 `(healthy)` 才算就绪。
 
 ### 21. 下载模型（后台执行 + 断点续传）
 
@@ -572,23 +581,91 @@ wsl -d Ubuntu -- bash -lc 'docker run --rm -v open-webui:/data -v $(pwd):/backup
 - **容器必须保留 `-e HF_HUB_OFFLINE=1`**，一旦去掉，国内网络下重启必卡启动（见第 28 条坑⑨）；
 - **务必定期备份**：`kill -9` 事故曾导致本卷数据库被清空，账号/会话不可找回（见第 34.1 条）。
 
-### 32.1 Portainer（可选，Docker 图形管理界面）
+### 32.1 Portainer（Docker 图形管理界面）
 
-> 浏览器端管理容器/镜像/卷的图形界面（Docker CE 默认无 UI，装它纯属方便）。
+> 浏览器端管理容器/镜像/卷/网络/日志的图形界面（Docker CE 默认无 UI）。当前使用**官方镜像** `portainer/portainer-ce:2.39.7`。官方镜像不带 `HEALTHCHECK`，因此 `docker ps` 里 portainer 只显示 `Up` 而没有 `(healthy)`——**这是官方镜像的正常行为，不是故障**。
+
+**⚠️ 曾踩过的坑（历史，供参考）：**
+
+1. **端口占用 → 永久 Exited(2)**：旧部署发布 `9000:9000 + 9443:9443` 且 `--restart always`，某次重启时 WSL 内 9000 被临时占用，docker 网络绑定失败导致容器一直死着；`restart=always` 对"启动期网络错误"不会重试，所以会一直 `Exited(2)`。
+2. **scratch 镜像无 shell / 自建健康检查方案已废弃**：`portainer-ce` 是纯静态 Go 单文件镜像（无 `/bin/sh`）；早期曾尝试在 `portainer/portainer-ce:latest` 基础上拷贝 busybox + glibc（动态链接 `ld-linux-x86-64.so.2`）自建 `portainer-ce:2.39.5` 加健康检查，但**官方镜像本就不定义 HEALTHCHECK**，自建方案维护成本高且 `Dockerfile` 已随清理删掉——**已改回官方镜像，无健康检查属正常**。
+
+**当前部署（官方镜像，只发布 9443，缩小端口冲突面）：**
 
 ```bash
-docker run -d --name portainer --restart always \
-  -p 9443:9443 -p 8000:8000 \
+docker run -d --name portainer --restart unless-stopped \
+  -p 9443:9443 \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v portainer_data:/data \
-  portainer/portainer-ce:latest
+  portainer/portainer-ce:2.39.7
 ```
 
-- 访问 **`https://localhost:9443`**（自签证书，浏览器提示"不安全"属正常，点继续）；
-- 首次访问设置 admin 密码；之后可可视化管理容器、镜像、卷、网络、日志；
-- 8080 仅限本地使用，勿映射公网；`portainer_data` 卷存其自身配置。
+- 只有 **9443** 对外发布（HTTPS），容器内 8000/9000 不对外映射；
+- 访问 **`https://localhost:9443`**（自签证书，浏览器提示"不安全"属正常，点继续）；首次访问设置 admin 密码；
+- 数据卷 `portainer_data` 存自身配置，**重建不丢**（沿用旧账号）;
+- `docker ps` 中 portainer **没有 `(healthy)` 标记属正常**，只要 `Up` 且 `https://localhost:9443` 能打开即可（API 自检见第 36/38 条）；
+- 仅本地管理用，勿映射公网。
 
-> 当前共三个容器：`ollama`(11434)、`open-webui`(3000)、`portainer`(9443，HTTPS)。
+### 32.2 Milvus 向量数据库（v2.6.22 单容器 embed 部署）
+
+> 供 Spring AI 2.0.1 做向量检索（RAG）。**版本必须 2.6.x**：`spring-ai-starter-vector-store-milvus:2.0.1` 编译依赖 `io.milvus:milvus-sdk-java:2.6.21`（v2 协议），官方兼容表是 2.6.x 服务器 ↔ 2.6.x SDK；Milvus 3.x 需 v3 SDK（v2/v3 proto 不互通），所以**不能用 3.0.x**。
+
+**部署**（单容器内嵌 etcd + 本地存储，约 1~2GB 内存）：
+
+```bash
+# ① 配置文件（官方 standalone_embed.sh 同款参数）
+mkdir -p /root/milvus
+# /root/milvus/embedEtcd.yaml：
+#   listen-client-urls: http://0.0.0.0:2379
+#   quota-backend-bytes: 4294967296        # etcd 配额 4GB
+#   auto-compaction-retention: '120000000'
+# /root/milvus/user.yaml：占位文件（挂载需文件存在，缺失会挂成空目录导致解析失败）
+
+# ② 启动
+docker run -d --name milvus --restart unless-stopped \
+  --security-opt seccomp:unconfined \
+  -e ETCD_USE_EMBED=true \
+  -e ETCD_DATA_DIR=/var/lib/milvus/etcd \
+  -e ETCD_CONFIG_PATH=/milvus/configs/embedEtcd.yaml \
+  -e COMMON_STORAGETYPE=local \
+  -e DEPLOY_MODE=STANDALONE \
+  -p 19530:19530 -p 9091:9091 \
+  -v milvus:/var/lib/milvus \
+  -v /root/milvus/embedEtcd.yaml:/milvus/configs/embedEtcd.yaml \
+  -v /root/milvus/user.yaml:/milvus/configs/user.yaml \
+  --health-cmd 'curl -f http://localhost:9091/healthz' \
+  --health-interval 30s --health-timeout 10s --health-start-period 60s --health-retries 5 \
+  milvusdb/milvus:v2.6.22 \
+  milvus run standalone
+```
+
+- `19530`：gRPC 主链路（Spring AI 应用连这个）；`9091`：WebUI（`http://localhost:9091`）；
+- `-v milvus:/var/lib/milvus`：**命名卷持久化**，删容器重建不丢向量数据；
+- 镜像自带 curl，健康检查直接查 `:9091/healthz`，返回 `OK` 即 ready；
+- 验证：`wsl -d Ubuntu -- docker ps` 显示 `(healthy)`，`curl http://localhost:9091/healthz` 返回 `OK`；
+- spring-ai-application 对接（后续阶段）：pom 加 `spring-ai-starter-vector-store-milvus`（同 BOM 2.0.1），配置 `spring.ai.vectorstore.milvus.*` 指向 `localhost:19530`；
+- 国内拉镜像约 1.3GB，报 `connection reset` 直接重跑 `docker pull` 即可（已实测成功）。
+
+### 32.3 MySQL 8.0（Spring AI 项目数据库）
+
+```bash
+docker run -d --name mysql8 --restart unless-stopped \
+  -p 3306:3306 \
+  -v /root/docker/mysql/logs:/var/log/mysql \
+  -v /root/docker/mysql/conf/mysql.cnf:/etc/mysql/conf.d/mysql.cnf \
+  -v /root/docker/mysql/data:/var/lib/mysql \
+  -e MYSQL_USER=sap -e MYSQL_PASSWORD=sap123 \
+  -e MYSQL_ROOT_PASSWORD=root123 -e MYSQL_DATABASE=sap_db \
+  --health-cmd 'mysqladmin ping -h 127.0.0.1 -uroot -proot123 --silent' \
+  --health-interval 30s --health-timeout 5s --health-start-period 60s --health-retries 3 \
+  mysql:8.0
+```
+
+- 数据在**绑定挂载** `/root/docker/mysql/data`（不是命名卷），备份直接拷该目录；
+- 健康检查 `mysqladmin ping`：服务起来且 root 可连通才显示 `(healthy)`；
+- 重建必须带齐 `-v` 三个挂载与四个 `MYSQL_*` 环境变量，否则数据/账号不完整。
+
+> 当前六个容器：`ollama`(11434)、`open-webui`(3000)、`portainer`(9443, HTTPS, 官方镜像无健康检查)、`mysql8`(3306)、`milvus`(19530/9091)、`attu`(8000, Milvus 图形管理界面)，全部 `--restart unless-stopped`；其中除 portainer 外均带健康检查。
 
 ---
 
@@ -613,9 +690,12 @@ docker rm -f ollama                 # 删掉损坏容器（模型在 volume 里�
 docker pull ollama/ollama           # 重拉镜像（约 8GB）
 docker run -d --name ollama --restart unless-stopped \
   --device /dev/dxg \
+  -e OLLAMA_HOST=0.0.0.0:11434 \
   -e HSA_OVERRIDE_GFX_VERSION=11.0.2 \
   -v ollama:/root/.ollama \
   -p 11434:11434 \
+  --health-cmd 'OLLAMA_HOST=127.0.0.1:11434 ollama list >/dev/null 2>&1' \
+  --health-interval 30s --health-timeout 10s --health-start-period 30s --health-retries 3 \
   ollama/ollama
 docker exec ollama ollama list      # 确认 deepseek-r1:7b 还在（4.7GB，未重下）
 ```
@@ -655,7 +735,7 @@ processors=8
 vmIdleTimeout=-1
 ```
 
-改完执行 `wsl --shutdown` 生效。已实测：关闭所有终端后等 90 秒以上，实例与三个容器仍保持 Running。
+改完执行 `wsl --shutdown` 生效。已实测：关闭所有终端后等 90 秒以上，实例与全部容器仍保持 Running（空闲保活与 `--restart unless-stopped` 配合）。
 
 **启动方式（手动方案，无开机自启）**——每次要用时执行一次：
 
@@ -663,7 +743,7 @@ vmIdleTimeout=-1
 wsl -d Ubuntu -- bash -lc 'systemctl start docker 2>/dev/null; sleep 5; docker ps'
 ```
 
-WSL 启动后即自愈：docker（systemd enable）→ ollama / open-webui / portainer 容器（`--restart unless-stopped` 自动拉起）→ 11434 / 3000 / 9443 端口就绪。
+WSL 启动后即自愈：docker（systemd enable）→ ollama / open-webui / portainer / attu 等容器（`--restart unless-stopped` 自动拉起）→ 11434 / 3000 / 9443 / 8000 端口就绪。
 
 > 已尝试过的方案（均被否/失败）：计划任务开机自启（无管理员权限，Access denied）；启动文件夹快捷方式（需授权被拒）。最终采用手动启动。想彻底关机时执行 `wsl --shutdown`。
 
@@ -672,7 +752,9 @@ WSL 启动后即自愈：docker（systemd enable）→ ollama / open-webui / por
 ```powershell
 curl http://localhost:11434        # 返回 "Ollama is running" 即正常
 curl http://localhost:3000         # 返回 HTML 即 Open WebUI 正常
-wsl -d Ubuntu -- docker ps --format '{{.Names}} {{.Status}}'   # 看两个容器状态
+curl http://localhost:9091/healthz # Milvus：返回 OK 即正常
+curl.exe -sk https://localhost:9443/api/status   # Portainer：返回 {"Version":"2.39.7",...} 即正常
+wsl -d Ubuntu -- docker ps --format '{{.Names}} {{.Status}}'   # ollama/mysql8/milvus/open-webui 应为 Up (healthy)，portainer 为 Up（官方镜像无健康检查）
 ```
 
 ### 37. 日常对话
@@ -694,16 +776,24 @@ wsl -d Ubuntu -- docker exec -it ollama ollama run deepseek-r1:7b
 |------|------|
 | 手动启动全栈 | `wsl -d Ubuntu -- bash -lc 'systemctl start docker 2>/dev/null; sleep 5; docker ps'` |
 | 看 WSL 实例状态 | `wsl -l -v`（Running / Stopped） |
-| 看容器状态 | `wsl -d Ubuntu -- docker ps -a` |
+| 看容器状态/健康 | `wsl -d Ubuntu -- docker ps --format '{{.Names}} {{.Status}}'` |
+| 看全部（含退出） | `wsl -d Ubuntu -- docker ps -a` |
 | 手动启容器 | `wsl -d Ubuntu -- docker start ollama` |
+| 启 Milvus / MySQL / Portainer / Attu | `wsl -d Ubuntu -- docker start milvus`（同理 `mysql8` / `portainer` / `attu`） |
 | 启 Open WebUI | `wsl -d Ubuntu -- docker start open-webui` |
 | 看容器日志 | `wsl -d Ubuntu -- docker logs ollama` |
 | 看 Open WebUI 日志 | `wsl -d Ubuntu -- docker logs open-webui` |
+| Milvus 健康检查 | `wsl -d Ubuntu -- bash -lc 'curl -s http://localhost:9091/healthz'` |
+| Portainer API 检查 | `curl.exe -sk https://localhost:9443/api/status` |
 | 看模型列表 | `wsl -d Ubuntu -- docker exec ollama ollama list` |
 | 下载/换模型 | `wsl -d Ubuntu -- docker exec ollama ollama pull <模型名>` |
 | 删模型 | `wsl -d Ubuntu -- docker exec ollama ollama rm deepseek-r1:7b` |
 | 看推理设备 | `wsl -d Ubuntu -- docker exec ollama ollama ps` |
 | 看内存占用 | `wsl -d Ubuntu -- docker stats` |
+| 清理悬空镜像 | `wsl -d Ubuntu -- docker image prune -f` |
+| 清理孤立卷 | `wsl -d Ubuntu -- docker volume prune -f` |
+| 清理构建缓存 | `wsl -d Ubuntu -- docker builder prune -f` |
+| 一键清理全部无用资源 | `wsl -d Ubuntu -- docker system prune -af --volumes`（⚠️ 慎用，会删掉所有无容器引用的镜像/卷/缓存） |
 | 重启 WSL | `wsl --shutdown`（之后重开任意 WSL 命令即恢复） |
 
 ### 39. 常见故障排查表
@@ -715,6 +805,10 @@ wsl -d Ubuntu -- docker exec -it ollama ollama run deepseek-r1:7b
 | 对话返回 JSON 解析错误 | 双引号被 PowerShell 吃掉，改用 `Invoke-RestMethod` 或 `curl.exe --%` |
 | 模型缺失 | `wsl -d Ubuntu -- docker exec ollama ollama list`；缺则重 `ollama pull deepseek-r1:7b` |
 | 端口 11434 被占 | `netstat -ano | findstr 11434` 查占用，检查是否有第二个 ollama 容器 |
+| `localhost:9091`（Milvus）不通 | `wsl -d Ubuntu -- docker start milvus`；确认 19530/9091 已映射；仍不行看 `docker logs milvus` |
+| portainer `Exited(2)` | 端口被占导致网络绑定失败 → 按第 32.1 条重建（`docker run` 只发布 9443，`portainer_data` 卷不丢） |
+| portainer 没有 `(healthy)` | 官方镜像无 HEALTHCHECK，属正常；`https://localhost:9443` 能打开即可（API：`curl.exe -sk https://localhost:9443/api/status`） |
+| milvus `docker pull` 报 connection reset | 镜像源单层重置，直接重跑 `docker pull milvusdb/milvus:v2.6.22`（已实测重试成功） |
 | 容器重建后模型不见了 | 检查是否用了 `-v ollama:/root/.ollama`；若用了旧卷，`ollama pull` 秒回因为已有缓存则正常 |
 | 项目 `/ollama/chat` 报模型不存在 | 检查 `.env` 是否设了 `OLLAMA_CHAT_MODEL=deepseek-r1:7b`（yaml 默认是 `deepseek-r1:14b`，本地未装该模型） |
 | WSL 内存不足 | 改 `.wslconfig` 后 `wsl --shutdown` 生效 |
@@ -741,6 +835,10 @@ wsl -d Ubuntu -- docker exec -it ollama ollama run deepseek-r1:7b
 15. **Open WebUI 容器必须带 `-e HF_HUB_OFFLINE=1`**：国内网络下 huggingface.co 的联网校验会卡死启动（坑⑨，见第 28 条）；去掉后重建容器必复现。
 16. **WSL 空闲保活**：`.wslconfig` 里 `[general] instanceIdleTimeout` 与 `[wsl2] vmIdleTimeout` 都必须设 `-1`，只改一个无效（坑⑩，见第 35 条）。
 17. **定期备份 open-webui 卷**：`kill -9` 事故曾清空其数据库（账号/会话不可找回，见第 34.1 条）；备份命令见第 30 条。Ollama 模型卷含 4.7GB 模型，一般无需备份。
+18. **Milvus 版本锁定 2.6.x**：Spring AI 2.0.1 的 milvus starter 依赖 v2 SDK（`milvus-sdk-java:2.6.21`），服务端只能用 2.6.x，勿升 3.x（第 32.2 条）。
+19. **portainer 用官方镜像** `portainer/portainer-ce`（当前 2.39.7）：官方镜像不带 HEALTHCHECK，`docker ps` 无 `(healthy)` 标记**属正常**；此前的自建健康检查镜像方案已废弃。重建命令见第 32.1 条。
+20. **portainer 只发布 9443**：容器内 9000/8000 不对外映射；再出 `Exited(2)` 先查端口占用（第 32.1 条）。主机 8000 端口现由 Milvus 管理界面 attu 占用，勿与 portainer 混淆。
+21. **定期清理 Docker 垃圾**：`docker image prune -f`、`docker volume prune -f`、`docker builder prune -f`；`docker system prune -af --volumes` 会删所有无引用的镜像/卷/缓存，先确认不需要。
 
 ---
 
@@ -755,10 +853,14 @@ wsl -d Ubuntu -- docker exec -it ollama ollama run deepseek-r1:7b
 | `/usr/sbin/policy-rc.d` | 屏蔽 dpkg 自动启动服务（exit 101） |
 | `/var/lib/docker/volumes/ollama/_data` | **Ollama 模型数据（勿删）** |
 | `/var/lib/docker/volumes/open-webui/_data` | **Open WebUI 数据**（账号/会话/上传文件/RAG 库） |
+| `/var/lib/docker/volumes/milvus/_data` | **Milvus 向量数据（命名卷，勿删）** |
+| `/var/lib/docker/volumes/portainer_data/_data` | Portainer 自身配置/账号（重建不丢） |
+| `/root/milvus/embedEtcd.yaml`、`user.yaml` | Milvus embed 模式 etcd 配置（**运行中容器挂载，勿删**） |
+| `/root/docker/mysql/data`（绑定挂载） | **MySQL 数据（勿删，备份直接拷此目录）** |
 | `/var/log/dockerd.log`、`/var/log/ollama-pull.log` | 运行日志 |
 | `D:\JavaProjects\SpringAiPractice\.env` | 项目对接配置（git 忽略） |
 | `D:\JavaProjects\SpringAiPractice\src\main\resources\static\knowledgeBase\` | 本文档所在目录 |
 
-> 当前运行容器：`ollama`（11434，模型服务）、`open-webui`（3000，网页界面）、`portainer`（9443，HTTPS 管理界面）。三者均 `--restart unless-stopped`，WSL 启动后由 systemd 托管 Docker 自动拉起。
+> 当前运行容器：`ollama`（11434，模型服务）、`open-webui`（3000，网页界面）、`portainer`（9443，HTTPS 管理界面）、`mysql8`（3306，项目数据库）、`milvus`（19530/9091，向量库）、`attu`（8000，Milvus 管理界面）。六个均 `--restart unless-stopped`；其中 ollama / open-webui / mysql8 / milvus 带健康检查显示 `(healthy)`，**portainer 官方镜像无 HEALTHCHECK，`Up` 即正常**，WSL 启动后由 systemd 托管 Docker 自动拉起。
 
-> 临时部署脚本位于 `C:\Users\YU\AppData\Local\Temp\opencode\`，仅作排查参考，非必需文件。
+> 部署/排查过程的临时脚本与自建 portainer 镜像均已清理，现统一使用官方镜像 `portainer/portainer-ce`（重建命令见第 32.1 条）。

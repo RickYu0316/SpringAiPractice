@@ -250,4 +250,29 @@ public class ChatClientConfig {
                 .defaultTools(toolCallbackProvider)
                 .build();
     }
+
+    /**
+     * 基于 Milvus向量库的 RAG ChatClient（检索增强生成 + 多轮记忆）
+     */
+    @Bean
+    public ChatClient ragChatClient(DeepSeekChatModel deepSeekChatModel,
+                                    JdbcChatMemoryRepository jdbcChatMemoryRepository) {
+        String systemPrompt = """
+                你是一位专业的 RAG 聊天助手，基于检索到的向量库上下文回答问题：
+                - 优先依据上下文作答，如上下文带有来源（文件名/页码等）可一并说明；
+                - 若上下文不足以回答问题，请如实说明知识库中没有相关内容，不要凭空编造。
+                """;
+        // 多轮对话记忆
+        ChatMemory ragChatMemory = MessageWindowChatMemory.builder()
+                .maxMessages(maxMessages)
+                .chatMemoryRepository(jdbcChatMemoryRepository)
+                .build();
+        MessageChatMemoryAdvisor chatMemoryAdvisor = MessageChatMemoryAdvisor.builder(ragChatMemory).build();
+
+        return ChatClient.builder(deepSeekChatModel)
+                .defaultSystem(s -> s.text(systemPrompt)
+                        .metadata("model", deepSeekModel))
+                .defaultAdvisors(defaultLoggerAdvisor, chatMemoryAdvisor)
+                .build();
+    }
 }

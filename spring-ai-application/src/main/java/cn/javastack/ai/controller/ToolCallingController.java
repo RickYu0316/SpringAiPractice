@@ -1,8 +1,8 @@
 package cn.javastack.ai.controller;
 
 import cn.javastack.ai.dto.custom.CustomChatRequest;
-import cn.javastack.ai.tools.EmailTools;
-import cn.javastack.ai.tools.ErrorCodeTools;
+import cn.javastack.ai.mcptools.EmailTools;
+import cn.javastack.ai.mcptools.ErrorCodeTools;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
