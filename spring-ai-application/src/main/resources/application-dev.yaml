@@ -20,7 +20,7 @@ spring:
       client:
         enabled: true
         type: SYNC
-        request-timeout: 30s
+        request-timeout: 60s
         toolcallback:
           enabled: true
         annotation-scanner:
@@ -63,7 +63,7 @@ spring:
         model: ${OPENROUTER_EMBEDDING_MODEL:voyageai/voyage-4}
         metadata-mode: embed
         max-retries: 3
-        timeout: 60s
+        timeout: 120s
         # dimensions: 1024
         # encoding-format: float
         # extra-body:

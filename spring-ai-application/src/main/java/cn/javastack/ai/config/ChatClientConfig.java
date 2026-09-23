@@ -119,6 +119,7 @@ public class ChatClientConfig {
         return ChatClient.builder(chatModel)
                 .defaultSystem(s -> s.text(systemText)
                         .metadata("model", modelName))
+                .defaultAdvisors(defaultLoggerAdvisor)
                 .build();
     }
 

@@ -28,6 +28,16 @@ public class GlobalExceptionHandler {
                 ));
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, String>> handleIllegalArgument(IllegalArgumentException e) {
+        log.warn("参数校验失败：{}", e.getMessage());
+        return ResponseEntity.badRequest()
+                .body(Map.of(
+                        "error", "参数校验失败",
+                        "message", e.getMessage() != null ? e.getMessage() : "请求参数不合法"
+                ));
+    }
+
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<Map<String, String>> handleMissingParams(MissingServletRequestParameterException e) {
         log.warn("缺少请求参数：{}", e.getParameterName());
