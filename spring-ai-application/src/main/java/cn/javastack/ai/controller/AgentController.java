@@ -2,6 +2,7 @@ package cn.javastack.ai.controller;
 
 import cn.hutool.core.util.StrUtil;
 import cn.javastack.ai.agent.CodeReviewAgent;
+import cn.javastack.ai.agent.OnlineCustomerAgent;
 import cn.javastack.ai.agent.ResumeEvaluationAgent;
 import cn.javastack.ai.utils.DocumentParseUtils;
 import io.swagger.v3.oas.annotations.Operation;
@@ -26,6 +27,8 @@ public class AgentController {
 
     private final CodeReviewAgent codeReviewAgent;
 
+    private final OnlineCustomerAgent onlineCustomerAgent;
+
     @Operation(summary = "HR智能评估筛选简历")
     @PostMapping(value = "/resumeEvaluate", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public String resumeEvaluate(@Parameter(description = "简历附件", content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE, schema = @Schema(type = "string", format = "binary")))
@@ -43,5 +46,15 @@ public class AgentController {
         }
         log.info("Java代码质量审查，执行...");
         return codeReviewAgent.review(codeContent);
+    }
+
+    @Operation(summary = "智能在线客服")
+    @PostMapping(value = "/onlineCustomer", consumes = MediaType.TEXT_PLAIN_VALUE)
+    public String onlineCustomer(@Parameter(description = "用户咨询问题") @RequestBody String message) {
+        if (StrUtil.isBlank(message)) {
+            throw new IllegalArgumentException("咨询内容不能为空");
+        }
+        log.info("智能在线客服，执行...");
+        return onlineCustomerAgent.route(message);
     }
 }
