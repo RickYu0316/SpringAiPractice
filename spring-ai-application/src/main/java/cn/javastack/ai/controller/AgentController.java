@@ -2,11 +2,13 @@ package cn.javastack.ai.controller;
 
 import cn.hutool.core.util.StrUtil;
 import cn.javastack.ai.agent.CodeReviewAgent;
+import cn.javastack.ai.agent.MerchantPreAuditAgent;
 import cn.javastack.ai.agent.OnlineCustomerAgent;
 import cn.javastack.ai.agent.ResumeEvaluationAgent;
 import cn.javastack.ai.utils.DocumentParseUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -15,6 +17,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Tag(name = "Agent 智能体接口", description = "Agent 智能体接口")
 @Slf4j
@@ -28,6 +33,8 @@ public class AgentController {
     private final CodeReviewAgent codeReviewAgent;
 
     private final OnlineCustomerAgent onlineCustomerAgent;
+
+    private final MerchantPreAuditAgent merchantPreAuditAgent;
 
     @Operation(summary = "HR智能评估筛选简历")
     @PostMapping(value = "/resumeEvaluate", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -56,5 +63,20 @@ public class AgentController {
         }
         log.info("智能在线客服，执行...");
         return onlineCustomerAgent.route(message);
+    }
+
+    @Operation(summary = "商户入网智能预审")
+    @PostMapping(value = "/preAudit", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public String preAudit(@Parameter(description = "商户入网申请资料", content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE, array = @ArraySchema(schema = @Schema(type = "string", format = "binary"))))
+                           @RequestParam("files") List<MultipartFile> files) {
+        String application = files.stream()
+                .filter(file -> !file.isEmpty())
+                .map(DocumentParseUtils::extractContent)
+                .collect(Collectors.joining("\n\n"));
+        if (StrUtil.isBlank(application)) {
+            throw new IllegalArgumentException("商户入网申请资料不能为空");
+        }
+        log.info("商户入网智能预审，执行...");
+        return merchantPreAuditAgent.preAudit(application);
     }
 }

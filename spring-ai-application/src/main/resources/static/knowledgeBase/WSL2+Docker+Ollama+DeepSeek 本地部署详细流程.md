@@ -30,7 +30,7 @@
 - **Attu**（Milvus 图形管理界面）已部署（`http://localhost:8000`）
 - 由于 WSL 内缺 `/dev/kfd`，**ROCm GPU 加速不可用，走 CPU 推理**，实测约 11.6 token/s
 - 全部 6 个容器统一 `--restart unless-stopped`；其中 ollama/open-webui/mysql8/milvus 带**健康检查**（`docker ps` 显示 `(healthy)`），portainer 官方镜像无 HealthCheck、`Up` 即属正常
-- WSL 空闲不再自动关机（`.wslconfig` 双 idle timeout）；打开任意 WSL 终端即拉起 Docker → 六容器自动恢复（手动启动方案，无开机自启）
+- **有开机自启链路**：`Docker-AutoStart.vbs`（用户级 Startup 文件夹，延时 60s）→ 拉起 WSL → systemd 启 Docker → `/root/.docker-autostart.sh` 等 docker 就绪后 `docker start` 全部容器。注意 `--restart unless-stopped` **只自动拉起"意外退出"的容器**，优雅关机 `docker stop` 会把容器标记为手动停止、不会自动恢复，恢复全靠自启脚本里的显式 `docker start`
 
 ### 国内网络要点速览
 
@@ -737,15 +737,57 @@ vmIdleTimeout=-1
 
 改完执行 `wsl --shutdown` 生效。已实测：关闭所有终端后等 90 秒以上，实例与全部容器仍保持 Running（空闲保活与 `--restart unless-stopped` 配合）。
 
-**启动方式（手动方案，无开机自启）**——每次要用时执行一次：
+**开机自启链路（已配置）**——电脑开机自动拉起 WSL + 全部容器，无需手动：
+
+1. `C:\Users\YU\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\Docker-AutoStart.vbs`：开机延时 60 秒待网络就绪，非阻塞触发 `wsl.exe -d Ubuntu -- bash /root/.docker-autostart.sh`
+2. WSL 启动后 systemd 自动拉起 docker（`systemctl is-enabled docker` = enabled）
+3. `/root/.docker-autostart.sh`：轮询等 docker 就绪（最多 120 秒）后执行 `docker ps -aq | xargs -r docker start`，一次拉起全部 6 个容器
+
+> 手动启动全栈命令（与自启脚本等效）：`wsl -d Ubuntu -u root bash /root/.docker-autostart.sh`
+
+**为什么自启脚本必须显式 `docker start`（关键坑⑪）**：`--restart unless-stopped` 只自动恢复**意外退出**（崩溃/OOM）的容器；而优雅关机流程用的是 `docker stop`，会先把容器标记为"手动停止"，Docker 再启动时**不会**碰它们。若自启脚本只等 docker 就绪就退出（旧版脚本的缺陷），优雅关机后再开机会发现容器全停着、`docker ps` 为空。已实测修复：2026-09-25 优雅关机 → 关电脑 → 开机只有 docker.service 起来、6 容器全 Exited；在脚本追加 `docker start` 后一次全恢复。
+
+### 35.1 优雅关机（推荐，防 Milvus 崩溃）
+
+**为什么必须优雅关**：直接 `wsl --shutdown`（或断电/强关电脑）会**硬杀 WSL 虚拟机**，内嵌 Docker 里的容器来不及收尾。Milvus 的 embed etcd 在写 WAL 时被打断会损坏数据 → 下次开机 `--restart unless-stopped` 自动拉起后崩溃循环（`Restarting (134)`、`etcdserver: leader changed` panic），应用侧报 `milvusClient` 初始化 `DEADLINE_EXCEEDED`；元数据损坏严重时只能清空 `/var/lib/milvus/etcd` 重建（向量集合丢失）。已实测出坑，2026-09-24 断电重启必现。
+
+**原则**：先停容器（SIGTERM 等它优雅收尾）→ 停 Docker daemon（防 socket 拉活）→ 再关 WSL VM（电源在 Windows 侧，`systemctl poweroff` 无效）。
+
+**Windows PowerShell（已验证）**：
 
 ```powershell
-wsl -d Ubuntu -- bash -lc 'systemctl start docker 2>/dev/null; sleep 5; docker ps'
+# ① 优雅停所有容器（逐个 SIGTERM，默认等 10 秒收尾，超时才强杀）
+wsl -d Ubuntu -u root sh -c "docker ps -aq | xargs -r docker stop"
+# ② 停 Docker daemon（防 docker.socket 又把服务拉活）
+wsl -d Ubuntu -u root systemctl stop docker
+# ③ 从 Windows 侧优雅关 WSL 虚拟机
+wsl --terminate Ubuntu
 ```
 
-WSL 启动后即自愈：docker（systemd enable）→ ollama / open-webui / portainer / attu 等容器（`--restart unless-stopped` 自动拉起）→ 11434 / 3000 / 9443 / 8000 端口就绪。
+**terminal / cmd**：
 
-> 已尝试过的方案（均被否/失败）：计划任务开机自启（无管理员权限，Access denied）；启动文件夹快捷方式（需授权被拒）。最终采用手动启动。想彻底关机时执行 `wsl --shutdown`。
+```cmd
+wsl -d Ubuntu -u root sh -c "docker ps -aq | xargs -r docker stop && systemctl stop docker"
+wsl --terminate Ubuntu
+```
+
+**开机恢复**：
+
+```powershell
+# WSL 已关闭：冷启动 + 等 docker 就绪 + 拉起全部容器（推荐，与开机自启同款）
+wsl -d Ubuntu -u root bash /root/.docker-autostart.sh
+
+# WSL / docker 已在运行、只容器停了：免等 docker，直接拉起
+wsl -d Ubuntu -u root sh -c "docker ps -aq | xargs -r docker start"
+```
+
+> 优雅关机后**不要**以为只执行 `wsl -d Ubuntu` 就能自动恢复容器（`unless-stopped` 不管手动停止的容器，见坑⑪）。要么跑上面的自启脚本，要么直接重启电脑走 `Docker-AutoStart.vbs` 自启链路。跑完后 `docker ps` 的 6 个容器应在 30 秒内全部 `Up (healthy)`。
+
+**坑（均已实测）**：
+- **`$(docker ps -aq)` 写法在 PowerShell 会被宿主抢先求值**（Windows 无 docker 命令 → CommandNotFoundException，命令变形），在 cmd 里多容器时 `$()` 换行输出会被 sh 拆开执行（只停第一个容器）。**必须用 `docker ps -aq | xargs -r docker stop`**（逐行喂参，无容器时 `-r` 直接跳过）。
+- **`systemctl poweroff` 在 WSL 内无效**：执行后 `wsl -l -v` 仍 `Running`（uptime 递增）。WSL VM 电源只能在 Windows 侧控制，用 `wsl --terminate Ubuntu`。
+- `wsl --terminate` 后**不要再立刻执行任何 `wsl -d Ubuntu ...` 命令**——会触发冷启动把 VM 拉回来。
+- 校验关机结果：`wsl -l -v` 应显示 `Stopped`（而非 `Running`）。
 
 ### 36. 快速验证
 
@@ -774,7 +816,9 @@ wsl -d Ubuntu -- docker exec -it ollama ollama run deepseek-r1:7b
 
 | 用途 | 命令 |
 |------|------|
-| 手动启动全栈 | `wsl -d Ubuntu -- bash -lc 'systemctl start docker 2>/dev/null; sleep 5; docker ps'` |
+| 手动恢复全栈（WSL 已关,冷启动+容器） | `wsl -d Ubuntu -u root bash /root/.docker-autostart.sh`（开机自启同款，等 docker 就绪后 start 全部） |
+| 手动恢复容器（WSL/docker 已在运行） | `wsl -d Ubuntu -- sh -c "docker ps -aq \| xargs -r docker start"`（等价自启脚本后半段，不用等 docker） |
+| 开机后 `docker ps` 无容器（空列表） | 可能是优雅关机 `docker stop` 把容器标记为手动停止，`unless-stopped` 不恢复 → 执行 `wsl -d Ubuntu -u root bash /root/.docker-autostart.sh` 或 `wsl -d Ubuntu -u root sh -c "docker ps -aq \| xargs -r docker start"`（见坑⑪） |
 | 看 WSL 实例状态 | `wsl -l -v`（Running / Stopped） |
 | 看容器状态/健康 | `wsl -d Ubuntu -- docker ps --format '{{.Names}} {{.Status}}'` |
 | 看全部（含退出） | `wsl -d Ubuntu -- docker ps -a` |
@@ -794,7 +838,8 @@ wsl -d Ubuntu -- docker exec -it ollama ollama run deepseek-r1:7b
 | 清理孤立卷 | `wsl -d Ubuntu -- docker volume prune -f` |
 | 清理构建缓存 | `wsl -d Ubuntu -- docker builder prune -f` |
 | 一键清理全部无用资源 | `wsl -d Ubuntu -- docker system prune -af --volumes`（⚠️ 慎用，会删掉所有无容器引用的镜像/卷/缓存） |
-| 重启 WSL | `wsl --shutdown`（之后重开任意 WSL 命令即恢复） |
+| 全面优雅关机（推荐） | PowerShell：`wsl -d Ubuntu -u root sh -c "docker ps -aq \| xargs -r docker stop"` → `systemctl stop docker` → `wsl --terminate Ubuntu`（详见 35.1） |
+| 查看 WSL 状态 | `wsl -l -v`（Graceful 关后应为 `Stopped`；`--shutdown` 是硬杀，避免） |
 
 ### 39. 常见故障排查表
 
@@ -811,6 +856,8 @@ wsl -d Ubuntu -- docker exec -it ollama ollama run deepseek-r1:7b
 | milvus `docker pull` 报 connection reset | 镜像源单层重置，直接重跑 `docker pull milvusdb/milvus:v2.6.22`（已实测重试成功） |
 | 容器重建后模型不见了 | 检查是否用了 `-v ollama:/root/.ollama`；若用了旧卷，`ollama pull` 秒回因为已有缓存则正常 |
 | 项目 `/ollama/chat` 报模型不存在 | 检查 `.env` 是否设了 `OLLAMA_CHAT_MODEL=deepseek-r1:7b`（yaml 默认是 `deepseek-r1:14b`，本地未装该模型） |
+| milvus `Restarting (134)` 崩溃循环 | 意外断电/硬关 WSL 损坏 embed etcd WAL（日志：`etcdserver: leader changed` / `context canceled` panic）。先 `wsl -d Ubuntu -- docker stop milvus`，备份 `/var/lib/milvus/etcd` 后删除该目录让元数据重建（向量集合需重灌）；并排查 .env 的 milvus 配置 |
+| 项目启动报 `milvusClient` DEADLINE_EXCEEDED | 通常不是配置问题，是 Milvus 容器起不来（崩循环/未启动）→ `docker ps` 看 milvus 状态，先 `docker start milvus` 等 `Up (healthy)` 再启应用 |
 | WSL 内存不足 | 改 `.wslconfig` 后 `wsl --shutdown` 生效 |
 | 关掉终端后 WSL 自动关机 | `.wslconfig` 里 `[general] instanceIdleTimeout=-1` 与 `[wsl2] vmIdleTimeout=-1` 都要设，见第 35 条 |
 
@@ -839,6 +886,9 @@ wsl -d Ubuntu -- docker exec -it ollama ollama run deepseek-r1:7b
 19. **portainer 用官方镜像** `portainer/portainer-ce`（当前 2.39.7）：官方镜像不带 HEALTHCHECK，`docker ps` 无 `(healthy)` 标记**属正常**；此前的自建健康检查镜像方案已废弃。重建命令见第 32.1 条。
 20. **portainer 只发布 9443**：容器内 9000/8000 不对外映射；再出 `Exited(2)` 先查端口占用（第 32.1 条）。主机 8000 端口现由 Milvus 管理界面 attu 占用，勿与 portainer 混淆。
 21. **定期清理 Docker 垃圾**：`docker image prune -f`、`docker volume prune -f`、`docker builder prune -f`；`docker system prune -af --volumes` 会删所有无引用的镜像/卷/缓存，先确认不需要。
+22. **关机一律走优雅流程**（见 35.1）：先 `docker stop` 全部容器 → `systemctl stop docker` → `wsl --terminate Ubuntu`。**禁止**直接 `wsl --shutdown` / 断电关电脑，否则 Milvus embed etcd WAL 损坏 → 崩循环 → 元数据需重建（向量数据丢失）。`systemctl poweroff` 在 WSL 内无效。
+
+23. **`--restart unless-stopped` 只恢复"意外退出"的容器（坑⑪）**：容器被 `docker stop` 优雅停止后带"手动停止"标记，Docker 重启**不会**自动拉起它。所以优雅关机后的"开机自动恢复"由 `/root/.docker-autostart.sh` 里的 `docker ps -aq | xargs -r docker start` 完成（VBS 自启链路见第 35 节），不要指望 `unless-stopped`。已实测：优雅关机 → 关机 → 开机只有 docker.service 起来、6 容器全 Exited、`docker ps` 为空；脚本修复后一次全恢复。
 
 ---
 
@@ -859,6 +909,8 @@ wsl -d Ubuntu -- docker exec -it ollama ollama run deepseek-r1:7b
 | `/root/docker/mysql/data`（绑定挂载） | **MySQL 数据（勿删，备份直接拷此目录）** |
 | `/var/log/dockerd.log`、`/var/log/ollama-pull.log` | 运行日志 |
 | `D:\JavaProjects\SpringAiPractice\.env` | 项目对接配置（git 忽略） |
+| `C:\Users\YU\AppData\Roaming\...\Startup\Docker-AutoStart.vbs` | **开机自启入口**：延时 60s 后调用 `/root/.docker-autostart.sh` |
+| `/root/.docker-autostart.sh`（WSL 内） | **自启脚本**：等 docker 就绪后 `docker start` 全部容器 |
 | `D:\JavaProjects\SpringAiPractice\src\main\resources\static\knowledgeBase\` | 本文档所在目录 |
 
 > 当前运行容器：`ollama`（11434，模型服务）、`open-webui`（3000，网页界面）、`portainer`（9443，HTTPS 管理界面）、`mysql8`（3306，项目数据库）、`milvus`（19530/9091，向量库）、`attu`（8000，Milvus 管理界面）。六个均 `--restart unless-stopped`；其中 ollama / open-webui / mysql8 / milvus 带健康检查显示 `(healthy)`，**portainer 官方镜像无 HEALTHCHECK，`Up` 即正常**，WSL 启动后由 systemd 托管 Docker 自动拉起。
