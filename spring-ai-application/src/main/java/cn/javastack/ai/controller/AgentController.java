@@ -5,6 +5,7 @@ import cn.javastack.ai.agent.CodeReviewAgent;
 import cn.javastack.ai.agent.MerchantPreAuditAgent;
 import cn.javastack.ai.agent.OnlineCustomerAgent;
 import cn.javastack.ai.agent.ResumeEvaluationAgent;
+import cn.javastack.ai.agent.SqlOptimizeAgent;
 import cn.javastack.ai.utils.DocumentParseUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -35,6 +36,8 @@ public class AgentController {
     private final OnlineCustomerAgent onlineCustomerAgent;
 
     private final MerchantPreAuditAgent merchantPreAuditAgent;
+
+    private final SqlOptimizeAgent sqlOptimizeAgent;
 
     @Operation(summary = "HR智能评估筛选简历")
     @PostMapping(value = "/resumeEvaluate", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -78,5 +81,15 @@ public class AgentController {
         }
         log.info("商户入网智能预审，执行...");
         return merchantPreAuditAgent.preAudit(application);
+    }
+
+    @Operation(summary = "SQL智能优化")
+    @PostMapping(value = "/sqlOptimize", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public SqlOptimizeAgent.RefinedResponse sqlOptimize(@RequestBody SqlOptimizeAgent.SqlOptimizeRequest request) {
+        if (request == null || StrUtil.isBlank(request.sql())) {
+            throw new IllegalArgumentException("原始 SQL 不能为空");
+        }
+        log.info("SQL智能优化，执行...");
+        return sqlOptimizeAgent.optimize(request);
     }
 }
