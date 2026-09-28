@@ -1,0 +1,127 @@
+spring:
+  ai:
+    model:
+      embedding: openai
+    chat:
+      client:
+        enabled: false
+        tool-search-advisor:
+          enabled: true
+          tool-index-type: regex
+          max-results: 50
+          eviction:
+            lru-max-sessions: 1000
+      memory:
+        repository:
+          jdbc:
+            platform: mysql
+            initialize-schema: always
+    mcp:
+      client:
+        enabled: true
+        type: SYNC
+        request-timeout: 60s
+        toolcallback:
+          enabled: true
+        annotation-scanner:
+          enabled: false
+        stdio:
+          servers-configuration: classpath:/mcp/mcp-servers.json
+        streamable-http:
+          connections:
+            server1:
+              url: http://localhost:8081
+              endpoint: /mcp
+    retry:
+      max-attempts: 3
+    vectorstore:
+      milvus:
+        client:
+          host: "localhost"
+          port: 19530
+          username: "root"
+          password: "milvus"
+        database-name: "default"
+        collection-name: "vector_store"
+        initialize-schema: true
+        embedding-dimension: 1024
+        index-type: IVF_FLAT
+        metric-type: COSINE
+    deepseek:
+      api-key: ${DEEPSEEK_API_KEY}
+      base-url: https://api.deepseek.com
+      chat:
+        model: ${DEEPSEEK_CHAT_MODEL:deepseek-v4-flash}
+        max-tokens: 8192
+    openai:
+      api-key: ${OPENROUTER_API_KEY}
+      base-url: https://openrouter.ai/api/v1
+      chat:
+        model: ${OPENROUTER_CHAT_MODEL:xiaomi/mimo-v2.5}
+        max-completion-tokens: 8192
+      embedding:
+        model: ${OPENROUTER_EMBEDDING_MODEL:voyageai/voyage-4}
+        metadata-mode: embed
+        max-retries: 3
+        timeout: 120s
+        # dimensions: 1024
+        # encoding-format: float
+        # extra-body:
+        #   input_type: document
+      image:
+        model: ${OPENROUTER_IMAGE_MODEL:bytedance-seed/seedream-4.5}
+        n: 1
+        size: 2048x2048
+      audio:
+        # 文本转语音
+        speech:
+          model: ${OPENROUTER_TTS_MODEL:x-ai/grok-voice-tts-1.0}
+          voice: eve
+          speed: 1.0
+          response-format: mp3
+        # 语音转文字
+        transcription:
+          model: ${OPENROUTER_STT_MODEL:deepgram/nova-3}
+          language: zh
+          temperature: 0.2
+          response-format: verbose_json
+    # Ollama本地大模型
+    ollama:
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+      init:
+        pull-model-strategy: never
+      chat:
+        model: ${OLLAMA_CHAT_MODEL:deepseek-r1:8b}
+        think: high
+        keep-alive: 5m
+        temperature: 0.7
+    # OpenRouter
+    open-router:
+      base-url: ${OPENROUTER_BASE_URL:https://openrouter.ai/api}
+      api-key: ${OPENROUTER_API_KEY}
+      app-name: ${spring.application.name}
+      site-url: ${OPENROUTER_SITE_URL:http://localhost:8080}
+      default-model: ${OPENROUTER_DEFAULT_MODEL:xiaomi/mimo-v2.5}
+      chat-completions-path: /v1/chat/completions
+      image-model: ${OPENROUTER_IMAGE_MODEL:bytedance-seed/seedream-4.5}
+      video-model: ${OPENROUTER_VIDEO_MODEL:bytedance/seedance-2.0}
+      moderation-model: ${OPENROUTER_MODERATION_MODEL:nvidia/nemotron-3.5-content-safety}
+      image-path: /v1/images
+      video-path: /v1/videos
+  # MySql，生产环境开启useSSL=true
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://127.0.0.1:3306/sap_db?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true
+    username: sap
+    password: ${MYSQL_PASSWORD}
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      idle-timeout: 30000
+      max-lifetime: 1800000
+      validation-timeout: 5000
+      connection-timeout: 30000
+      keepalive-time: 30000
+      auto-commit: true
+      connection-init-sql: SELECT 1
+      pool-name: SapHikariPool

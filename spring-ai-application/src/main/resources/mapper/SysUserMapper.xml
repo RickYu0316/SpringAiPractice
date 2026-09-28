@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.javastack.ai.mapper.SysUserMapper">
+
+    <!-- 用户结果映射 -->
+    <resultMap id="SysUserMap" type="cn.javastack.ai.domain.SysUser">
+        <id column="id" property="id"/>
+        <result column="username" property="username"/>
+        <result column="password" property="password"/>
+        <result column="nickname" property="nickname"/>
+        <result column="phone" property="phone"/>
+        <result column="email" property="email"/>
+        <result column="status" property="status" typeHandler="com.baomidou.mybatisplus.core.handlers.MybatisEnumTypeHandler"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="is_deleted" property="isDeleted"/>
+    </resultMap>
+
+    <!-- 统计用户名数量 -->
+    <select id="countByUsername" resultType="long">
+        SELECT COUNT(*)
+        FROM sys_user
+        WHERE username = #{username}
+          AND is_deleted = 0
+    </select>
+
+    <!-- 根据手机号查询用户 -->
+    <select id="selectByPhone" resultMap="SysUserMap">
+        SELECT *
+        FROM sys_user
+        WHERE phone = #{phone}
+          AND is_deleted = 0
+    </select>
+
+    <!-- 查询最近活跃用户 -->
+    <select id="selectRecentActive" resultMap="SysUserMap">
+        SELECT *
+        FROM sys_user
+        WHERE is_deleted = 0
+        ORDER BY create_time DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper>
