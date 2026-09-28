@@ -105,6 +105,7 @@ spring:
       chat-completions-path: /v1/chat/completions
       image-model: ${OPENROUTER_IMAGE_MODEL:bytedance-seed/seedream-4.5}
       video-model: ${OPENROUTER_VIDEO_MODEL:bytedance/seedance-2.0}
+      moderation-model: ${OPENROUTER_MODERATION_MODEL:nvidia/nemotron-3.5-content-safety}
       image-path: /v1/images
       video-path: /v1/videos
   # MySql，生产环境开启useSSL=true

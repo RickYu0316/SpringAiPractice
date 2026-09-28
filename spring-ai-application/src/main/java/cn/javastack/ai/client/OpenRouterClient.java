@@ -7,7 +7,10 @@ import cn.javastack.ai.dto.openrouter.OpenRouterChatCompletionRequest;
 import cn.javastack.ai.dto.openrouter.OpenRouterChatCompletionResponse;
 import cn.javastack.ai.dto.openrouter.OpenRouterChatRequest;
 import cn.javastack.ai.dto.openrouter.OpenRouterMessage;
+import cn.javastack.ai.dto.openrouter.OpenRouterModerationResult;
 import cn.javastack.ai.utils.OpenRouterResponseUtils;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
@@ -62,6 +65,8 @@ public class OpenRouterClient {
 
     private final GeneratedMediaCache generatedMediaCache;
 
+    private final ObjectMapper objectMapper;
+
     /**
      * OpenRouter 聊天（动态模型）
      */
@@ -93,6 +98,69 @@ public class OpenRouterClient {
             log.error("调用OpenRouter接口失败：{}", e.getMessage(), e);
             return "OpenRouter AI聊天功能繁忙，请稍后重试!";
         }
+    }
+
+    /**
+     * OpenRouter 内容安全审核
+     */
+    public OpenRouterModerationResult moderate(String content) {
+        String model = openRouterProperties.getModerationModel();
+        log.info("调用OpenRouter 内容安全审核，model：{}，content：{}", model, content);
+
+        String systemPrompt = """
+                你是一个专业的内容安全审核系统。
+                可以根据内容安全政策判断用户的输入是否包含不安全内容。
+                
+                请只返回JSON，不要输出任何其他内容，格式如下：
+                {"flagged": true|false, "categories": ["违规类别1", "违规类别2"]}
+                
+                内容安全时 flagged 为 false 且 categories 为空数组。
+                """;
+        OpenRouterChatCompletionRequest completionRequest = new OpenRouterChatCompletionRequest(
+                model,
+                List.of(
+                        new OpenRouterMessage("system", systemPrompt),
+                        new OpenRouterMessage("user", content)
+                )
+        );
+
+        OpenRouterChatCompletionResponse response = openRouterRestClient.post()
+                .uri(openRouterProperties.getChatCompletionsPath())
+                .body(completionRequest)
+                .retrieve()
+                .body(OpenRouterChatCompletionResponse.class);
+
+        String jsonStr = OpenRouterResponseUtils.extractContent(response);
+        if (StrUtil.isBlank(jsonStr)) {
+            throw new RuntimeException("内容审核响应中未提取到内容，model=" + model);
+        }
+        return parseModerationResult(jsonStr);
+    }
+
+    /**
+     * 解析审核模型返回的JSON，解析失败时降级为关键词判断
+     */
+    private OpenRouterModerationResult parseModerationResult(String jsonStr) {
+        boolean flagged = false;
+        List<String> categories = new ArrayList<>();
+
+        try {
+            JsonNode root = objectMapper.readTree(jsonStr);
+            JsonNode flagNode = root.get("flagged");
+            if (flagNode != null && flagNode.isBoolean()) {
+                flagged = flagNode.asBoolean();
+            }
+
+            JsonNode catsNode = root.get("categories");
+            if (catsNode != null && catsNode.isArray()) {
+                catsNode.forEach(node -> categories.add(node.asText()));
+            }
+        } catch (Exception e) {
+            log.warn("内容审核JSON解析失败，降级为关键词判断：{}", e.getMessage());
+            flagged = jsonStr.toLowerCase().contains("unsafe") || jsonStr.contains("不安全");
+        }
+
+        return new OpenRouterModerationResult(flagged, categories, jsonStr);
     }
 
     /**

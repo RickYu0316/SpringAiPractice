@@ -53,6 +53,11 @@ public class OpenRouterProperties {
     private String videoModel;
 
     /**
+     * 内容审核模型
+     */
+    private String moderationModel;
+
+    /**
      * 图像生成接口路径
      */
     private String imagePath;
