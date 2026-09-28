@@ -1,0 +1,57 @@
+spring:
+  profiles:
+    active: dev
+  application:
+    name: spring-ai-application
+  servlet:
+    multipart:
+      # 上传大小限制
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+server:
+  port: 8080
+
+# MybatisPlus
+mybatis-plus:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: cn.javastack.ai.domain
+  type-enums-package: cn.javastack.ai.domain.enums
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+    cache-enabled: false
+    call-setters-on-nulls: true
+    jdbc-type-for-null: 'null'
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto  #自增
+
+# 日志级别配置
+logging:
+  level:
+    org.springframework.ai: debug
+    cn.javastack.ai.mapper: debug
+
+# springdoc配置
+springdoc:
+  packages-to-scan: cn.javastack.ai.controller,cn.javastack.ai.handler
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    operations-sorter: method
+    tags-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  info:
+    title: "Spring AI 接口"
+    version: "1.0.0"
+    description: "Spring AI 接口文档"
+    contact:
+      name: "team"
+      email: "team@example.com"
+    license:
+      name: "Apache 2.0"
+      url: "https://www.apache.org/licenses/LICENSE-2.0"
