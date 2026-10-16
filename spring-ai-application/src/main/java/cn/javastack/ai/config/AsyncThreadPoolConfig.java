@@ -18,7 +18,7 @@ public class AsyncThreadPoolConfig {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(10);
         executor.setMaxPoolSize(30);
-        executor.setQueueCapacity(100);
+        executor.setQueueCapacity(10);
         executor.setThreadNamePrefix("common-task-");
         executor.initialize();
         return executor;
@@ -32,7 +32,7 @@ public class AsyncThreadPoolConfig {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(2);
         executor.setMaxPoolSize(6);
-        executor.setQueueCapacity(20);
+        executor.setQueueCapacity(2);
         executor.setThreadNamePrefix("video-task-");
         executor.initialize();
         return executor;
